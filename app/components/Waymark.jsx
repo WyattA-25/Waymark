@@ -403,6 +403,40 @@ function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
 }
 
 // ─── PROFILE TAB ───────────────────────────────────────────────────────
+function NHTSAModelPicker({ rigProfile, setRigProfile }) {
+  const [models, setModels] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!rigProfile.make || !rigProfile.year) return;
+    setLoading(true);
+    fetch(`/api/rig-models?make=${encodeURIComponent(rigProfile.make)}&year=${rigProfile.year}`)
+      .then(r => r.json())
+      .then(data => {
+        setModels(data.models || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [rigProfile.make, rigProfile.year]);
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>
+        Model {loading && <span style={{ fontWeight: 400, color: C.muted }}>· loading...</span>}
+      </div>
+      <select value={rigProfile.model} onChange={e => setRigProfile(p => ({ ...p, model: e.target.value }))}
+        disabled={!rigProfile.make || loading}
+        style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", opacity: (!rigProfile.make || loading) ? 0.5 : 1 }}>
+        <option value="">Select a model...</option>
+        {models.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+      {rigProfile.make && !loading && models.length === 0 && (
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>No models found — try a different year</div>
+      )}
+    </div>
+  );
+}
+
 function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuyer }) {
   const subs = ["Harvest Hosts", "KOA", "Thousand Trails", "Good Sam", "Boondockers Welcome", "Passport America", "RV Trip Wizard", "Campendium Pro"];
   return (
@@ -425,42 +459,41 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
       </Card>
 
       <div>
+        
         <SectionLabel>Rig Profile</SectionLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
           {/* Year */}
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Year</div>
-            <select value={rigProfile.year} onChange={e => setRigProfile(p => ({ ...p, year: e.target.value }))}
+            <select value={rigProfile.year} onChange={e => setRigProfile(p => ({ ...p, year: e.target.value, model: "" }))}
               style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
-              {Array.from({ length: 16 }, (_, i) => String(2026 - i)).map(y => <option key={y} value={y}>{y}</option>)}
+              {Array.from({ length: 17 }, (_, i) => String(2026 - i)).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
 
           {/* Make */}
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Make</div>
-            <select value={rigProfile.make}
-              onChange={e => {
-                const make = e.target.value;
-                const firstModel = RIG_MODELS[make]?.[0] || "";
-                setRigProfile(p => ({ ...p, make, model: firstModel }));
-              }}
+            <select value={rigProfile.make} onChange={e => setRigProfile(p => ({ ...p, make: e.target.value, model: "" }))}
               style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
               <option value="">Select a brand...</option>
-              {Object.keys(RIG_MODELS).map(m => <option key={m} value={m}>{m}</option>)}
+              {["Airstream","Coachmen","CrossRoads","DRV","Entegra","Fleetwood","Forest River","Grand Design","Gulf Stream","Heartland","Jayco","Keystone","Lance","Newmar","Northwood","NuWa","Palomino","Prime Time","Provost","REV Group","Shasta","Starcraft","Thor Motor Coach","Tiffin","Venture","Winnebago"].map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
             </select>
           </div>
 
-          {/* Model */}
+          {/* Model — fetched from NHTSA */}
+          <NHTSAModelPicker rigProfile={rigProfile} setRigProfile={setRigProfile} />
+
+          {/* Floor Plan */}
           <div>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Model</div>
-            <select value={rigProfile.model} onChange={e => setRigProfile(p => ({ ...p, model: e.target.value }))}
-              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", opacity: rigProfile.make ? 1 : 0.5 }}
-              disabled={!rigProfile.make}>
-              <option value="">Select a model...</option>
-              {(RIG_MODELS[rigProfile.make] || []).map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Floor Plan</div>
+            <input value={rigProfile.floorPlan || ""} onChange={e => setRigProfile(p => ({ ...p, floorPlan: e.target.value }))}
+              placeholder='e.g. 295RL, 21BHE, 310RLS'
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Found on your window sticker or manufacturer's website</div>
           </div>
 
           {/* Length + Height */}
@@ -468,12 +501,14 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
             <div>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Length</div>
               <input value={rigProfile.length} onChange={e => setRigProfile(p => ({ ...p, length: e.target.value }))}
-                placeholder="e.g. 29'11&quot;" style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                placeholder="e.g. 29'11&quot;"
+                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
             </div>
             <div>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Height</div>
               <input value={rigProfile.height} onChange={e => setRigProfile(p => ({ ...p, height: e.target.value }))}
-                placeholder="e.g. 11'0&quot;" style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                placeholder="e.g. 11'0&quot;"
+                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
 
@@ -482,8 +517,12 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
             <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 20 }}>🚐</span>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>{rigProfile.year} {rigProfile.make} {rigProfile.model}</div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{rigProfile.length && rigProfile.height ? `${rigProfile.length} · ${rigProfile.height} tall` : "Add length and height"}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>
+                  {rigProfile.year} {rigProfile.make} {rigProfile.model} {rigProfile.floorPlan}
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>
+                  {rigProfile.length && rigProfile.height ? `${rigProfile.length} · ${rigProfile.height} tall` : "Add length and height"}
+                </div>
               </div>
             </div>
           )}
@@ -804,8 +843,8 @@ export default function App({ user }) {
   const [profileLoading, setProfileLoading] = useState(true);
   const [rigProfile, setRigProfile] = useState({
     year: "2024", make: "Grand Design", model: "Imagine XLS 21BHE",
+    floorPlan: "21BHE",
     length: "29'11\"", height: "11'0\"",
-    freshTank: "52", grayTank: "82", blackTank: "45",
     subs: ["Harvest Hosts", "KOA"],
   });
 
@@ -824,11 +863,9 @@ export default function App({ user }) {
           year: data.year || "2024",
           make: data.make || "Grand Design",
           model: data.model || "Imagine XLS 21BHE",
+          floorPlan: data.floor_plan || "",
           length: data.length || "29'11\"",
           height: data.height || "11'0\"",
-          freshTank: data.fresh_tank || "52",
-          grayTank: data.gray_tank || "82",
-          blackTank: data.black_tank || "45",
           subs: data.subs || ["Harvest Hosts", "KOA"],
         });
         setFirstTimeBuyer(data.first_time_buyer || false);
@@ -847,11 +884,9 @@ export default function App({ user }) {
         year: rigProfile.year,
         make: rigProfile.make,
         model: rigProfile.model,
+        floor_plan: rigProfile.floorPlan,
         length: rigProfile.length,
         height: rigProfile.height,
-        fresh_tank: rigProfile.freshTank,
-        gray_tank: rigProfile.grayTank,
-        black_tank: rigProfile.blackTank,
         subs: rigProfile.subs,
         first_time_buyer: firstTimeBuyer,
         updated_at: new Date().toISOString(),
