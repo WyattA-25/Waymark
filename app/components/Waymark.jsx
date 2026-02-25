@@ -283,7 +283,7 @@ function getResponse(input) {
 
 // ─── CHAT PANEL ────────────────────────────────────────────────────────
 function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
-  const [messages, setMessages] = useState([{ role: "ai", text: CHAT_OPENER }]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
@@ -300,15 +300,29 @@ function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
-  function sendMsg(text) {
+  async function sendMsg(text) {
     if (!text.trim()) return;
-    setMessages(m => [...m, { role: "user", text }]);
+    const newMessages = [...messages, { role: "user", text }];
+    setMessages(newMessages);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages,
+          rigProfile,
+          firstTimeBuyer,
+        }),
+      });
+      const data = await res.json();
+      setMessages(m => [...m, { role: "ai", text: data.text || "Something went wrong, please try again." }]);
+    } catch (err) {
+      setMessages(m => [...m, { role: "ai", text: "Connection error — please try again." }]);
+    } finally {
       setTyping(false);
-      setMessages(m => [...m, getResponse(text)]);
-    }, 1100 + Math.random() * 700);
+    }
   }
 
   return (
@@ -357,7 +371,14 @@ function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
               </div>
             )}
             <div style={{ maxWidth: "82%", padding: "10px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? C.accent : C.surfaceAlt, color: msg.role === "user" ? "#1A0800" : C.text, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", fontWeight: msg.role === "user" ? 600 : 400 }}>
-              {msg.text.split(/\*\*(.*?)\*\*/g).map((part, j) => j % 2 === 1 ? <strong key={j}>{part}</strong> : part)}
+              {msg.text.split("\n").map((line, j) => {
+                if (line.startsWith("### ")) return <div key={j} style={{ fontWeight: 800, fontSize: 13, color: C.accent, marginTop: 8, marginBottom: 2 }}>{line.replace("### ", "")}</div>;
+                if (line.startsWith("## ")) return <div key={j} style={{ fontWeight: 800, fontSize: 14, color: C.text, marginTop: 8, marginBottom: 2 }}>{line.replace("## ", "")}</div>;
+                if (line.startsWith("* ") || line.startsWith("- ")) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{"• "}{line.replace(/^\*\s|^-\s/, "").split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
+                if (/^\d+\.\s/.test(line)) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
+                if (line.trim() === "") return <div key={j} style={{ height: 6 }} />;
+                return <div key={j}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
+              })}
             </div>
           </div>
         ))}
@@ -884,9 +905,9 @@ export default function App({ user }) {
 
   const navItems = [
     { key: "home", icon: <Home size={20} />, label: "Home" },
+    { key: "copilot", icon: <Bot size={20} />, label: "Co-Pilot" },
     { key: "explore", icon: <Compass size={20} />, label: "Explore" },
     { key: "sites", icon: <Tent size={20} />, label: "Sites" },
-    { key: "copilot", icon: <Bot size={20} />, label: "Co-Pilot" },
     { key: "profile", icon: <User size={20} />, label: "Rig" },
   ];
 
