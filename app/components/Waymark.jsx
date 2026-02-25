@@ -439,17 +439,44 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
   const delta = ((cur - prev) / prev * 100).toFixed(1);
   const isUp = cur > prev;
 
+  const [vibeItems, setVibeItems] = useState([
+    { title: "Kayaking the Tetons — Summer 2024 Highlights", channel: "PaddleNomad", thumb: "🏔️", tag: "Adventure", url: null },
+    { title: "Grand Design 2600RB Full Solar Upgrade", channel: "VoltageVanlife", thumb: "⚡", tag: "DIY", url: null },
+  ]);
+  const [vibeLoading, setVibeLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadVideos() {
+      setVibeLoading(true);
+      try {
+        const query = `${rigProfile.make} ${rigProfile.model} RV camping`;
+        const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.videos && data.videos.length > 0) {
+          const tags = ["Tips", "DIY", "Adventure", "Off-Grid", "Routes", "Gear"];
+          setVibeItems(data.videos.slice(0, 3).map((v, i) => ({
+            title: v.title,
+            channel: v.channel,
+            thumb: v.thumbnail,
+            tag: tags[i % tags.length],
+            url: v.url,
+            isReal: true,
+          })));
+        }
+      } catch (err) {
+        console.error("Failed to load videos:", err);
+      } finally {
+        setVibeLoading(false);
+      }
+    }
+    loadVideos();
+  }, [rigProfile.make, rigProfile.model]);
   const weatherPoints = [
     { city: "Pittsburgh", temp: 62, wind: 12, status: "Clear", alert: false },
     { city: "Columbus", temp: 58, wind: 19, status: "Breezy", alert: false },
     { city: "St. Louis", temp: 71, wind: 8, status: "Clear", alert: false },
     { city: "Casper", temp: 44, wind: 52, status: "HIGH WIND", alert: true },
     { city: "Yellowstone", temp: 38, wind: 34, status: "Gusts", alert: false },
-  ];
-
-  const vibeItems = [
-    { title: "Kayaking the Tetons — Summer 2024 Highlights", channel: "PaddleNomad", views: "142K", dur: "18:32", thumb: "🏔️", tag: "Adventure" },
-    { title: "Grand Design 2600RB Full Solar Upgrade", channel: "VoltageVanlife", views: "89K", dur: "24:15", thumb: "⚡", tag: "DIY" },
   ];
 
   const actions = [
@@ -491,27 +518,34 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
       {/* Weather — stripped back, alert-first */}
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Route Weather</span>
-          <button onClick={openForecast} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Full Forecast →</button>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            Vibe Feed {vibeLoading && <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· loading...</span>}
+          </span>
+          <button onClick={openVibeFeed} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Browse All →</button>
         </div>
-        {/* Alert pill */}
-        <div onClick={() => openChat("reroute around high wind warning near Casper WY on my trip to Yellowstone")}
-          style={{ display: "flex", alignItems: "center", gap: 10, background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "11px 14px", marginBottom: 10, cursor: "pointer" }}>
-          <AlertTriangle size={15} color={C.red} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: C.red }}>High Wind Warning · Casper, WY</div>
-            <div style={{ fontSize: 11, color: `${C.red}BB`, marginTop: 1 }}>52 mph gusts · Tap to reroute</div>
-          </div>
-          <ChevronRight size={14} color={C.red} />
-        </div>
-        {/* City row */}
-        <div style={{ display: "flex", gap: 0, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-          {weatherPoints.map((pt, i) => (
-            <div key={i} style={{ flex: 1, padding: "12px 4px", textAlign: "center", borderRight: i < weatherPoints.length - 1 ? `1px solid ${C.border}` : "none", background: pt.alert ? `${C.red}0D` : "transparent" }}>
-              <div style={{ fontSize: 9, color: pt.alert ? C.red : C.muted, fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.03em" }}>{pt.city}</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: pt.alert ? C.red : C.text }}>{pt.temp}°</div>
-              <div style={{ fontSize: 9, color: pt.alert ? `${C.red}99` : C.muted, marginTop: 2 }}>{pt.wind}mph</div>
-            </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {vibeItems.map((v, i) => (
+            <a key={i}
+              href={v.url || "#"}
+              target={v.url ? "_blank" : "_self"}
+              rel="noopener noreferrer"
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, textDecoration: "none", transition: "border-color 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.blue}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+            >
+              {v.isReal ? (
+                <img src={v.thumb} alt={v.title} style={{ width: 80, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+              ) : (
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: C.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0, border: `1px solid ${C.border}` }}>{v.thumb}</div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", marginBottom: 4 }}>{v.title}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Badge color={C.blue} bg={C.blueSoft}>{v.tag}</Badge>
+                  <span style={{ fontSize: 10, color: C.muted }}>{v.channel}</span>
+                </div>
+              </div>
+            </a>
           ))}
         </div>
       </div>
