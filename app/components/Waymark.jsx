@@ -539,8 +539,13 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
         ))}
       </div>
 
-      {/* Weather — stripped back, alert-first */}
-      {weatherAlert.hasAlert && (
+      {/* Route Weather */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Route Weather</span>
+          <button onClick={openForecast} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Full Forecast →</button>
+        </div>
+        {weatherAlert.hasAlert && (
           <div onClick={() => openChat(`reroute around weather warning: ${weatherAlert.message}`)}
             style={{ display: "flex", alignItems: "center", gap: 10, background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "11px 14px", marginBottom: 10, cursor: "pointer" }}>
             <AlertTriangle size={15} color={C.red} />
@@ -551,28 +556,14 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
             <ChevronRight size={14} color={C.red} />
           </div>
         )}
-
-      {/* Market Watch — minimal */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Market Watch</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {isUp ? <TrendingUp size={12} color={C.green} /> : <TrendingDown size={12} color={C.red} />}
-            <span style={{ fontSize: 12, fontWeight: 700, color: isUp ? C.green : C.red }}>{isUp ? "+" : ""}{delta}%</span>
-          </div>
-        </div>
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{rigProfile.year} {rigProfile.make} Imagine</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>${cur.toLocaleString()}</div>
+        <div style={{ display: "flex", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          {weatherPoints.map((pt, i) => (
+            <div key={i} style={{ flex: 1, padding: "12px 4px", textAlign: "center", borderRight: i < weatherPoints.length - 1 ? `1px solid ${C.border}` : "none", background: pt.alert ? `${C.red}0D` : "transparent" }}>
+              <div style={{ fontSize: 9, color: pt.alert ? C.red : C.muted, fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.03em" }}>{pt.city}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: pt.alert ? C.red : C.text }}>{pt.temp}°</div>
+              <div style={{ fontSize: 9, color: pt.alert ? `${C.red}99` : C.muted, marginTop: 2 }}>{pt.wind}mph</div>
             </div>
-            <div style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
-              <div>Est. trade-in</div>
-              <div style={{ color: isUp ? C.green : C.red, fontWeight: 700, marginTop: 2 }}>{isUp ? "▲" : "▼"} trending</div>
-            </div>
-          </div>
-          <Sparkline data={marketData} color={isUp ? C.green : C.red} height={36} />
+          ))}
         </div>
       </div>
 
@@ -608,6 +599,30 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
               </div>
             </a>
           ))}
+        </div>
+      </div>
+
+      {/* Market Watch — minimal */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Market Watch</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {isUp ? <TrendingUp size={12} color={C.green} /> : <TrendingDown size={12} color={C.red} />}
+            <span style={{ fontSize: 12, fontWeight: 700, color: isUp ? C.green : C.red }}>{isUp ? "+" : ""}{delta}%</span>
+          </div>
+        </div>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{rigProfile.year} {rigProfile.make} Imagine</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>${cur.toLocaleString()}</div>
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
+              <div>Est. trade-in</div>
+              <div style={{ color: isUp ? C.green : C.red, fontWeight: 700, marginTop: 2 }}>{isUp ? "▲" : "▼"} trending</div>
+            </div>
+          </div>
+          <Sparkline data={marketData} color={isUp ? C.green : C.red} height={36} />
         </div>
       </div>
 
