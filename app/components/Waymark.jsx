@@ -559,10 +559,6 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────
 function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
-  const marketData = [29800, 29400, 30100, 31200, 30800, 31500, 30900, 32100, 31800, 32400, 33100, 32800];
-  const cur = marketData[marketData.length - 1], prev = marketData[marketData.length - 2];
-  const delta = ((cur - prev) / prev * 100).toFixed(1);
-  const isUp = cur > prev;
 
   const [vibeItems, setVibeItems] = useState([
     { title: "Kayaking the Tetons — Summer 2024 Highlights", channel: "PaddleNomad", thumb: "🏔️", tag: "Adventure", url: null },
@@ -723,30 +719,6 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
               </div>
             </a>
           ))}
-        </div>
-      </div>
-
-      {/* Market Watch — minimal */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Market Watch</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {isUp ? <TrendingUp size={12} color={C.green} /> : <TrendingDown size={12} color={C.red} />}
-            <span style={{ fontSize: 12, fontWeight: 700, color: isUp ? C.green : C.red }}>{isUp ? "+" : ""}{delta}%</span>
-          </div>
-        </div>
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{rigProfile.year} {rigProfile.make} Imagine</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>${cur.toLocaleString()}</div>
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
-              <div>Est. trade-in</div>
-              <div style={{ color: isUp ? C.green : C.red, fontWeight: 700, marginTop: 2 }}>{isUp ? "▲" : "▼"} trending</div>
-            </div>
-          </div>
-          <Sparkline data={marketData} color={isUp ? C.green : C.red} height={36} />
         </div>
       </div>
 
