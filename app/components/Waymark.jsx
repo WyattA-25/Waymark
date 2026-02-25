@@ -4,10 +4,9 @@ import { supabase } from "../../lib/supabase";
 import CampsiteSearch from "./CampsiteSearch";
 import { useState, useRef, useEffect } from "react";
 import {
-  Wind, Cloud, Droplets, AlertTriangle,
+  Wind, Droplets, AlertTriangle,
   Wrench, Navigation, User, Home,
-  TrendingUp, TrendingDown,
-  Map, Star, Bell, X, Send, MessageSquare,
+  Star, Bell, X, Send, MessageSquare,
   Tent, Car,
   ToggleLeft, ToggleRight, Bot, Compass, Sun,
   ArrowLeft, ChevronRight
@@ -30,6 +29,18 @@ const C = {
   text: "#E6EDF3",
   textSub: "#8B949E",
 };
+
+// ─── MOBILE HOOK ───────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(true);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
 
 // ─── SPARKLINE ─────────────────────────────────────────────────────────
 function Sparkline({ data, color = C.accent, height = 40 }) {
@@ -226,73 +237,29 @@ function FullVibePage({ onBack, rigProfile }) {
   );
 }
 
-// ─── AI RESPONSES ──────────────────────────────────────────────────────
-const CHAT_OPENER = "Hey! I'm Waymark — your RV co-pilot. I know your 2024 Grand Design Imagine XLS 21BHE inside and out. Ask me anything: routes, campsites, repairs, or what to do when something breaks at mile 400.";
-
+// ─── QUICK REPLIES ─────────────────────────────────────────────────────
 const QUICK_REPLIES = [
   "Flickering interior lights",
-  "Kayaking in Adirondacks",
   "Find a site near Moab",
   "PA to Yellowstone route",
   "Water filter replacement",
   "Avoid low bridges",
+  "Pre-trip checklist",
 ];
 
-const RESPONSES = {
-  "flickering": "Based on your rig profile (2024 Grand Design, 29'11\"), intermittent interior light flickering is a classic symptom of a **failing 12V converter**—specifically the WFCO 8955PEC in your model.\n\n🔍 **Diagnosis:**\n• Converter output drops below 13.2V under load\n• Often triggers when running multiple 12V circuits simultaneously\n\n🔧 **Fix:**\n1. Test with a multimeter at the converter terminals (should read 13.5–14.5V)\n2. Check for loose wire at the distribution panel (Panel B, bay 2 on your layout)\n3. If voltage is low → converter replacement: **~$180 part + 2 hrs labor**\n\nWant me to find mobile RV techs within 30 miles of your current location?",
-  "kayak": "Great choice! For a **30ft trailer** in the Adirondacks, tight mountain roads require careful planning.\n\n📍 **Basecamp Recommendation:**\n**Limekiln Lake Campground** (Inlet, NY)\n• 50-amp full hookups ✓\n• Max rig length: 35ft ✓\n• Water access: direct lake launch 🚣\n• Distance to best kayak waters: 0–8 miles\n\n🛶 **Top 3 Paddle Routes from Base:**\n1. **Limekiln Lake Loop** (easy, 4mi, your front yard)\n2. **Seventh Lake Chain** (moderate, 12mi)\n3. **Raquette Lake** (stunning, drive 18mi)\n\n⚠️ **Routing Alert:** Avoid NY-28N past Blue Mountain Lake—two bridges with 11'6\" clearance (your rig is 11'0\"—tight but passable, recommend daylight only).\n\nShall I build the full turn-by-turn route with height warnings?",
-  "limekiln": "Limekiln Lake is a **perfect basecamp** for your 2024 Grand Design (29'11\")!\n\n📍 **Limekiln Lake Campground, Inlet NY**\n• Pull-through sites up to 40ft ✓\n• 30/50-amp electric + water hookups\n• Direct lake access — launch your kayak from camp\n• $35–45/night · Reservable on ReserveAmerica\n\n🚣 **From Your Doorstep:**\nThe lake is calm and shallow — ideal for all skill levels. The full loop is 4 miles with stunning Adirondack views. Sunrise paddles here are legendary.\n\n🗺 **Nearby Highlights:**\n• Seventh Lake (3mi) — deeper, more remote paddling\n• Old Forge Town (12mi) — resupply, restaurants, brew pub\n• Moose River Plains (8mi) — boondocking option for extra nights\n\n⛽ **Nearest Propane:** Old Forge Hardware, 11.2mi\n\nWant me to build a full driving route from State College, PA with rig-safe roads only?",
-  "shenandoah": "**Shenandoah NP** is stunning but requires some planning for a 29'11\" rig!\n\n⚠️ **Rig Alert:** Skyline Drive has a **13' clearance** at several tunnel sections — you're fine at 11'0\" but watch mile markers 20.8 and 33.2.\n\n📍 **Best Campgrounds for Your Setup:**\n• **Mathews Arm** — Pull-throughs up to 35ft, electric hookups, $30/night\n• **Big Meadows** — Most popular, reservations fill fast, 30-amp available\n• **Lewis Mountain** — Smaller, quieter, accepts trailers\n\n🥾 **Top Trails from Base:**\n1. **Hawksbill Summit** (2.9mi RT) — highest peak in the park\n2. **Dark Hollow Falls** (1.4mi RT) — easiest waterfall hike\n3. **Stony Man** (1.6mi RT) — panoramic views\n\nShall I check availability for your dates?",
-  "delaware": "**Delaware Water Gap** is one of the best quick escapes for RVers near PA!\n\n📍 **Top Site for Your Rig:**\n**Dingmans Campground** — Private, 50-amp, pull-throughs to 45ft. $55/night with full hookups.\n\n🌊 **Paddling & Hiking:**\n• **Delaware River** — Class I–II flatwater, great for a 6-mile float\n• **Dingmans Falls Trail** (1mi) — two waterfalls, easy, gorgeous\n• **Appalachian Trail** crosses nearby — day hike from camp\n\n📏 **Route Note:** I-80 into the gap is unrestricted for your height. Avoid Old Mine Road after mile 8 — narrow and unpaved.\n\nWant a full itinerary for a 3-day weekend?",
-  "assateague": "**Assateague Island** — wild ponies, ocean beach, and serious boondocking vibes!\n\n⚠️ **Rig Note:** NPS hook-up sites max at **36ft** — you're good. The road is flat and sand-packed. Check tire pressure before you go.\n\n🐎 **What to Know:**\n• Wild ponies WILL approach your rig — secure all food\n• Ocean-side sites are exposed — bring your wind stakes!\n• Maryland side (Assateague SP) has electric hookups\n\n🏖 **Activities:**\n• Surf fishing right from your site\n• Kayaking the back-bay channels (calm, wildlife-rich)\n• Swimming — lifeguarded beach in summer\n\nWant me to check availability on Recreation.gov?",
-  "allegany": "**Allegany State Park** is a classic Northeastern gem — huge park with great amenities!\n\n📍 **Recommended:** Red House District — larger sites, 30/50-amp hookups, pull-throughs available\n\nYour 29'11\" fits comfortably. Electric sites run $30–42/night.\n\n🌲 **What to Do:**\n• 85 miles of hiking trails\n• **ASP Lake** — kayak rentals, calm flatwater\n• Thunder Rocks — massive boulders, easy walk from camp\n\n🍺 **Local Extras:**\n• Southern Tier Brewing (Salamanca, 8mi)\n• Seneca Nation lands nearby — unique cultural sites\n\nShall I build a route from State College with fuel and dump station stops?",
-  "promised": "**Promised Land State Park** is basically in your backyard — perfect for a quick weekend escape!\n\n📍 **Site Recommendation:**\nPine Lake Camp Area — largest sites, 30-amp hookups, wooded and private. $28/night.\n\n⚠️ **Rig Note:** Some loop roads are tight — request a pull-through when you reserve.\n\n🏊 **Activities:**\n• Swimming at two lakes (Promised Land + Lower Lake)\n• Kayak/canoe rentals on-site\n• 30+ miles of hiking trails — Bruce Lake Trail is a highlight\n• Only 85mi from State College — leave Friday after work!\n\nWant me to pre-fill a 3-night route with grocery stops on the way?",
-  "tire": "Good call staying on top of tire pressure — the #1 overlooked RV safety item!\n\n🔧 **For your 2024 Grand Design Imagine XLS:**\n\n**Recommended PSI:**\n• Front axle: **80 PSI** (cold inflation)\n• Rear axle: **80 PSI** (may go to 90 if near max load)\n• Spare: **80 PSI** (always keep at max)\n\n**Check Frequency:**\n• Before every trip (cold, before driving)\n• After any overnight below 32°F (PSI drops ~1lb per 10°F)\n\n💡 **Pro Tip:** Your Grand Design likely uses **ST235/80R16** tires. Check the door jamb sticker for your specific load rating.\n\nWant me to add a tire check reminder before your PA → Yellowstone departure?",
-  "water filter": "Water filter replacement is overdue — let's get that sorted before your big trip!\n\n🔧 **For your 2024 Grand Design:**\n\n**Replacement Filter:**\n• **Camco TastePURE** (inline, fits standard 3/4\" inlet) — ~$18 at Camping World\n• Replace every **3 months or 3,000 gallons**\n\n**Steps:**\n1. Turn off city water inlet\n2. Relieve pressure by opening a faucet\n3. Unscrew old filter (have a towel ready)\n4. Thread on new filter hand-tight + 1/4 turn\n5. Turn water back on, check for leaks\n\n⏱ **Time:** About 5 minutes total\n\nWith Yellowstone ahead, you'll want fresh filtering — campground water quality varies wildly. Add this to your pre-trip checklist?",
-  "reroute": "On it! Let me re-route your PA → Yellowstone trip to avoid the Casper, WY high wind corridor.\n\n🗺 **Alternative Route — Southern Bypass:**\n\n**Original:** I-80W through Casper (52mph wind warning)\n**Alternative:** Drop to US-30W → I-76W → US-287N via Fort Collins\n\n📍 **Revised Stops:**\n1. **Pittsburgh, PA** → Depart Day 1\n2. **Indianapolis, IN** → Overnight (Blue Beacon, 50-amp KOA nearby)\n3. **Denver, CO** → Day 2 rest stop + resupply\n4. **Fort Collins, CO → US-287N** → scenic, rig-safe\n5. **Lander, WY** → Overnight (beautiful, no wind advisory)\n6. **Yellowstone South Entrance** → Day 5 arrival\n\n⏱ Adds ~90 minutes but avoids the warning window entirely.\n\n⚠️ **Height Check:** US-287 through Fort Collins is clear for your 11'0\". No restrictions flagged.\n\nShall I export this as a turn-by-turn route?",
-  "alert": "Here are your current rig alerts:\n\n🔴 **Critical:**\n• Water Filter — **OVERDUE** for replacement\n\n🟡 **Upcoming:**\n• Tire Pressure Check — Due in 3 days\n• Black Tank Treatment — Due in 5 days\n\n🟢 **On Track:**\n• Slide Seal Lubrication — Due in 2 weeks\n• Annual Inspection — 2 months out\n\n📍 **Route Alert:**\nHigh Wind Warning active on your PA → Yellowstone route (Casper, WY — 52mph gusts). Recommend rerouting or delaying Day 5 transit.\n\nWant me to open any of these in detail?",
-};
-
-const RIG_MODELS = {
-  "Airstream": ["Bambi", "Caravel", "Flying Cloud", "International", "Globetrotter", "Classic", "Basecamp"],
-  "Grand Design": ["Imagine", "Imagine XLS", "Reflection", "Solitude", "Transcend", "Momentum"],
-  "Keystone": ["Hideout", "Springdale", "Passport", "Cougar", "Montana", "Raptor", "Fuzion", "Outback"],
-  "Forest River": ["Cherokee", "Rockwood", "Flagstaff", "Salem", "Wildwood", "Cardinal", "Georgetown"],
-  "Winnebago": ["Micro Minnie", "Minnie", "Voyage", "View", "Navion", "Intent", "Vita", "Solis"],
-  "Jayco": ["Jay Flight", "Jay Feather", "Eagle", "Greyhawk", "Precept", "Seismic", "Pinnacle"],
-  "Coachmen": ["Apex", "Freedom Express", "Catalina", "Clipper", "Prism", "Galleria"],
-  "Thor Motor Coach": ["Chateau", "Four Winds", "Quantum", "Axis", "Vegas", "Magnitude"],
-  "Lance": ["1475", "1685", "1995", "2185", "2375", "2465"],
-  "Heartland": ["Mallard", "Pioneer", "Trail Runner", "Big Country", "Cyclone", "Torque"],
-  "Tiffin": ["Allegro", "Phaeton", "Breeze", "Wayfarer", "Zephyr"],
-  "Newmar": ["Bay Star", "Dutch Star", "King Aire", "Ventana", "Canyon Star"],
-  "Fleetwood": ["Bounder", "Discovery", "Southwind", "Tioga", "Flair"],
-  "Other": ["Custom / Other"],
-};
-
-function getResponse(input) {
-  const lower = input.toLowerCase();
-  for (const [key, val] of Object.entries(RESPONSES)) {
-    if (lower.includes(key)) return { role: "ai", text: val };
-  }
-  return {
-    role: "ai",
-    text: `I'm analyzing that with your rig profile in mind...\n\nThis would connect to live campground databases, weather APIs, and your specific Grand Design service history in the full version.\n\n💡 **Try asking about:**\n• "flickering interior lights"\n• "kayaking in Adirondacks" or a location from Explore\n• "tire pressure" or "water filter"\n\nOr tap any of the quick-reply chips below!`,
-  };
-}
-
-// ─── CHAT PANEL ────────────────────────────────────────────────────────
-function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
+// ─── INLINE CHAT (Co-Pilot Page) ───────────────────────────────────────
+function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
   const prefillSent = useRef(false);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (prefillMessage && !prefillSent.current) {
       prefillSent.current = true;
-      setTimeout(() => sendMsg(prefillMessage), 500);
+      setTimeout(() => sendMsg(prefillMessage), 300);
     }
   }, [prefillMessage]);
 
@@ -310,11 +277,7 @@ function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: newMessages,
-          rigProfile,
-          firstTimeBuyer,
-        }),
+        body: JSON.stringify({ messages: newMessages, rigProfile, firstTimeBuyer }),
       });
       const data = await res.json();
       setMessages(m => [...m, { role: "ai", text: data.text || "Something went wrong, please try again." }]);
@@ -325,97 +288,119 @@ function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
     }
   }
 
-  return (
-    <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: Math.min(390, window.innerWidth),
-      background: C.bg, borderLeft: `1px solid ${C.border}`,
-      display: "flex", flexDirection: "column", zIndex: 100,
-      fontFamily: "'DM Sans', 'IBM Plex Sans', system-ui, sans-serif",
-      animation: "slideIn 0.25s ease",
-    }}>
-      <style>{`
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        @keyframes bounce { 0%,80%,100%{transform:scale(1)} 40%{transform:scale(1.5)} }
-      `}</style>
+  function renderMessage(text) {
+    return text.split("\n").map((line, j) => {
+      if (line.startsWith("### ")) return <div key={j} style={{ fontWeight: 800, fontSize: 13, color: C.accent, marginTop: 8, marginBottom: 2 }}>{line.replace("### ", "")}</div>;
+      if (line.startsWith("## ")) return <div key={j} style={{ fontWeight: 800, fontSize: 14, color: C.text, marginTop: 8, marginBottom: 2 }}>{line.replace("## ", "")}</div>;
+      if (line.startsWith("* ") || line.startsWith("- ")) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{"• "}{line.replace(/^\*\s|^-\s/, "").split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
+      if (/^\d+\.\s/.test(line)) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
+      if (line.trim() === "") return <div key={j} style={{ height: 6 }} />;
+      return <div key={j}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
+    });
+  }
 
-      {/* Header */}
-      <div style={{ padding: "16px 16px 14px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 12, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Bot size={20} color="#fff" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: C.text }}>Waymark AI</div>
-          <div style={{ fontSize: 11, color: C.green, display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.green, display: "inline-block" }} />
-            {firstTimeBuyer ? "Consultant Mode · First-Time Buyer" : "Co-Pilot · Rig Profile Loaded"}
-          </div>
-        </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", padding: 4 }}><X size={18} /></button>
-      </div>
+  const isEmpty = messages.length === 0 && !typing;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(1)} 40%{transform:scale(1.5)} }`}</style>
 
       {/* Rig badge */}
-      {!firstTimeBuyer && (
-        <div style={{ margin: "10px 14px 0", background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: "7px 11px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>
+        <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: "7px 11px", display: "flex", alignItems: "center", gap: 8 }}>
           <Car size={13} color={C.accent} />
-          <span style={{ fontSize: 11, color: C.accent, fontWeight: 600 }}>{rigProfile.year} {rigProfile.make} {rigProfile.model} · {rigProfile.length} · {rigProfile.height}</span>
+          <span style={{ fontSize: 11, color: C.accent, fontWeight: 600 }}>
+            {rigProfile.year} {rigProfile.make} {rigProfile.model} {rigProfile.floorPlan ? `· ${rigProfile.floorPlan}` : ""} · {rigProfile.length} · {rigProfile.height}
+          </span>
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: C.green }}>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: C.green, display: "inline-block" }} />
+            {firstTimeBuyer ? "Consultant" : "Co-Pilot"}
+          </span>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {isEmpty && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", gap: 16 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 18, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Bot size={26} color="#fff" />
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: C.text, letterSpacing: "-0.02em", marginBottom: 6 }}>Waymark AI</div>
+            <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.5, maxWidth: 260, margin: "0 auto" }}>
+              Ask me anything about your rig — repairs, routes, campsites, maintenance.
+            </div>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 340 }}>
+            {QUICK_REPLIES.map((q, i) => (
+              <button key={i} onClick={() => sendMsg(q)}
+                style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 20, padding: "6px 14px", color: C.textSub, fontSize: 12, cursor: "pointer", fontFamily: "inherit", transition: "border-color 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+                onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0 }}>
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 8 }}>
-            {msg.role === "ai" && (
-              <div style={{ width: 26, height: 26, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
+      {!isEmpty && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 12, minHeight: 0 }}>
+          {messages.map((msg, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 8 }}>
+              {msg.role === "ai" && (
+                <div style={{ width: 26, height: 26, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
+                  <Bot size={13} color="#fff" />
+                </div>
+              )}
+              <div style={{ maxWidth: "82%", padding: "10px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? C.accent : C.surfaceAlt, color: msg.role === "user" ? "#1A0800" : C.text, fontSize: 13, lineHeight: 1.6, fontWeight: msg.role === "user" ? 600 : 400 }}>
+                {renderMessage(msg.text)}
+              </div>
+            </div>
+          ))}
+          {typing && (
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Bot size={13} color="#fff" />
               </div>
-            )}
-            <div style={{ maxWidth: "82%", padding: "10px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? C.accent : C.surfaceAlt, color: msg.role === "user" ? "#1A0800" : C.text, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", fontWeight: msg.role === "user" ? 600 : 400 }}>
-              {msg.text.split("\n").map((line, j) => {
-                if (line.startsWith("### ")) return <div key={j} style={{ fontWeight: 800, fontSize: 13, color: C.accent, marginTop: 8, marginBottom: 2 }}>{line.replace("### ", "")}</div>;
-                if (line.startsWith("## ")) return <div key={j} style={{ fontWeight: 800, fontSize: 14, color: C.text, marginTop: 8, marginBottom: 2 }}>{line.replace("## ", "")}</div>;
-                if (line.startsWith("* ") || line.startsWith("- ")) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{"• "}{line.replace(/^\*\s|^-\s/, "").split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
-                if (/^\d+\.\s/.test(line)) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
-                if (line.trim() === "") return <div key={j} style={{ height: 6 }} />;
-                return <div key={j}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
-              })}
+              <div style={{ display: "flex", gap: 4, padding: "12px 14px", background: C.surfaceAlt, borderRadius: "4px 14px 14px 14px" }}>
+                {[0,1,2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: C.muted, display: "inline-block", animation: `bounce 1.2s ${i*0.2}s ease infinite` }} />)}
+              </div>
             </div>
-          </div>
-        ))}
-        {typing && (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-            <div style={{ width: 26, height: 26, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <Bot size={13} color="#fff" />
-            </div>
-            <div style={{ display: "flex", gap: 4, padding: "12px 14px", background: C.surfaceAlt, borderRadius: "4px 14px 14px 14px", width: "fit-content" }}>
-              {[0, 1, 2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: C.muted, display: "inline-block", animation: `bounce 1.2s ${i * 0.2}s ease infinite` }} />)}
-            </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      )}
 
-      {/* Quick Replies */}
-      <div style={{ padding: "8px 14px 0", display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
-        {QUICK_REPLIES.map((q, i) => (
-          <button key={i} onClick={() => sendMsg(q)} style={{ whiteSpace: "nowrap", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 20, padding: "5px 12px", color: C.textSub, fontSize: 11, cursor: "pointer", fontFamily: "inherit", transition: "border-color 0.15s", }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
-            onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      {/* Quick replies (when messages exist) */}
+      {!isEmpty && (
+        <div style={{ padding: "8px 16px 0", display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
+          {QUICK_REPLIES.map((q, i) => (
+            <button key={i} onClick={() => sendMsg(q)}
+              style={{ whiteSpace: "nowrap", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 20, padding: "5px 12px", color: C.textSub, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.accent}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Input */}
-      <div style={{ padding: "10px 14px 24px", display: "flex", gap: 8, flexShrink: 0, background: C.bg }}>
+      <div style={{ padding: "10px 16px 16px", display: "flex", gap: 8, flexShrink: 0 }}>
         <input
-          value={input} onChange={e => setInput(e.target.value)}
+          ref={inputRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && sendMsg(input)}
           placeholder="Ask Waymark anything about your rig..."
           style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
         />
-        <button onClick={() => sendMsg(input)} style={{ width: 42, height: 42, borderRadius: 10, background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <button onClick={() => sendMsg(input)}
+          style={{ width: 42, height: 42, borderRadius: 10, background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Send size={16} color="#1A0800" />
         </button>
       </div>
@@ -423,7 +408,7 @@ function ChatPanel({ onClose, rigProfile, firstTimeBuyer, prefillMessage }) {
   );
 }
 
-// ─── PROFILE TAB ───────────────────────────────────────────────────────
+// ─── NHTSA MODEL PICKER ────────────────────────────────────────────────
 function NHTSAModelPicker({ rigProfile, setRigProfile }) {
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -433,17 +418,14 @@ function NHTSAModelPicker({ rigProfile, setRigProfile }) {
     setLoading(true);
     fetch(`/api/rig-models?make=${encodeURIComponent(rigProfile.make)}&year=${rigProfile.year}`)
       .then(r => r.json())
-      .then(data => {
-        setModels(data.models || []);
-        setLoading(false);
-      })
+      .then(data => { setModels(data.models || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [rigProfile.make, rigProfile.year]);
 
   return (
     <div>
       <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>
-        Model {loading && <span style={{ fontWeight: 400, color: C.muted }}>· loading...</span>}
+        Model {loading && <span style={{ fontWeight: 400 }}>· loading...</span>}
       </div>
       <select value={rigProfile.model} onChange={e => setRigProfile(p => ({ ...p, model: e.target.value }))}
         disabled={!rigProfile.make || loading}
@@ -458,6 +440,7 @@ function NHTSAModelPicker({ rigProfile, setRigProfile }) {
   );
 }
 
+// ─── PROFILE TAB ───────────────────────────────────────────────────────
 function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuyer }) {
   const subs = ["Harvest Hosts", "KOA", "Thousand Trails", "Good Sam", "Boondockers Welcome", "Passport America", "RV Trip Wizard", "Campendium Pro"];
   return (
@@ -480,11 +463,8 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
       </Card>
 
       <div>
-        
         <SectionLabel>Rig Profile</SectionLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {/* Year */}
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Year</div>
             <select value={rigProfile.year} onChange={e => setRigProfile(p => ({ ...p, year: e.target.value, model: "" }))}
@@ -492,32 +472,24 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
               {Array.from({ length: 17 }, (_, i) => String(2026 - i)).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
-
-          {/* Make */}
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Make</div>
             <select value={rigProfile.make} onChange={e => setRigProfile(p => ({ ...p, make: e.target.value, model: "" }))}
               style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
               <option value="">Select a brand...</option>
-              {["Airstream","Coachmen","CrossRoads","DRV","Entegra","Fleetwood","Forest River","Grand Design","Gulf Stream","Heartland","Jayco","Keystone","Lance","Newmar","Northwood","NuWa","Palomino","Prime Time","Provost","REV Group","Shasta","Starcraft","Thor Motor Coach","Tiffin","Venture","Winnebago"].map(m => (
+              {["Airstream","Coachmen","CrossRoads","DRV","Entegra","Fleetwood","Forest River","Grand Design","Gulf Stream","Heartland","Jayco","Keystone","Lance","Newmar","Northwood","NuWa","Palomino","Prime Time","Shasta","Starcraft","Thor Motor Coach","Tiffin","Venture","Winnebago"].map(m => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </div>
-
-          {/* Model — fetched from NHTSA */}
           <NHTSAModelPicker rigProfile={rigProfile} setRigProfile={setRigProfile} />
-
-          {/* Floor Plan */}
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Floor Plan</div>
             <input value={rigProfile.floorPlan || ""} onChange={e => setRigProfile(p => ({ ...p, floorPlan: e.target.value }))}
-              placeholder='e.g. 295RL, 21BHE, 310RLS'
+              placeholder="e.g. 295RL, 21BHE, 310RLS"
               style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
             <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Found on your window sticker or manufacturer's website</div>
           </div>
-
-          {/* Length + Height */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Length</div>
@@ -532,8 +504,6 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
                 style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
-
-          {/* Summary pill */}
           {rigProfile.make && rigProfile.model && (
             <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 20 }}>🚐</span>
@@ -547,13 +517,11 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
               </div>
             </div>
           )}
-
         </div>
       </div>
 
       <div>
         <SectionLabel>Subscriptions</SectionLabel>
-        {/* Use a standard block layout so it wraps and scrolls naturally */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {subs.map(s => {
             const active = rigProfile.subs.includes(s);
@@ -579,11 +547,10 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────
-function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
-
+function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
   const [vibeItems, setVibeItems] = useState([
-    { title: "Kayaking the Tetons — Summer 2024 Highlights", channel: "PaddleNomad", thumb: "🏔️", tag: "Adventure", url: null },
-    { title: "Grand Design 2600RB Full Solar Upgrade", channel: "VoltageVanlife", thumb: "⚡", tag: "DIY", url: null },
+    { title: "Loading your feed...", channel: "", thumb: "🏕️", tag: "Tips", url: null },
+    { title: "Loading your feed...", channel: "", thumb: "🔧", tag: "DIY", url: null },
   ]);
   const [vibeLoading, setVibeLoading] = useState(false);
 
@@ -597,12 +564,8 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
         if (data.videos && data.videos.length > 0) {
           const tags = ["Tips", "DIY", "Adventure", "Off-Grid", "Routes", "Gear"];
           setVibeItems(data.videos.slice(0, 3).map((v, i) => ({
-            title: v.title,
-            channel: v.channel,
-            thumb: v.thumbnail,
-            tag: tags[i % tags.length],
-            url: v.url,
-            isReal: true,
+            title: v.title, channel: v.channel, thumb: v.thumbnail,
+            tag: tags[i % tags.length], url: v.url, isReal: true,
           })));
         }
       } catch (err) {
@@ -613,6 +576,7 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
     }
     loadVideos();
   }, [rigProfile.make, rigProfile.model]);
+
   const [weatherPoints, setWeatherPoints] = useState([
     { city: "Pittsburgh", temp: "--", wind: "--", status: "Loading", alert: false },
     { city: "Columbus", temp: "--", wind: "--", status: "Loading", alert: false },
@@ -620,10 +584,7 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
     { city: "Casper", temp: "--", wind: "--", status: "Loading", alert: false },
     { city: "Yellowstone", temp: "--", wind: "--", status: "Loading", alert: false },
   ]);
-  const [weatherAlert, setWeatherAlert] = useState({
-    hasAlert: true,
-    message: "High Wind Warning · Casper, WY (52mph gusts)",
-  });
+  const [weatherAlert, setWeatherAlert] = useState({ hasAlert: false, message: "" });
 
   useEffect(() => {
     async function loadWeather() {
@@ -632,10 +593,7 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
         const data = await res.json();
         if (data.weatherPoints) {
           setWeatherPoints(data.weatherPoints);
-          setWeatherAlert({
-            hasAlert: data.hasAlert,
-            message: data.alertMessage || "",
-          });
+          setWeatherAlert({ hasAlert: data.hasAlert, message: data.alertMessage || "" });
         }
       } catch (err) {
         console.error("Failed to load weather:", err);
@@ -645,30 +603,22 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
   }, []);
 
   const actions = [
-    { label: "Fix Issue", icon: <Wrench size={16} />, color: C.accent, mode: "mechanic", prompt: "I need help diagnosing an issue with my RV" },
-    { label: "Plan Route", icon: <Navigation size={16} />, color: C.blue, mode: "route", prompt: "Help me plan a route for my upcoming trip to Yellowstone" },
-    { label: "Find Site", icon: <Tent size={16} />, color: C.green, mode: "site", prompt: "Help me find a great campsite for my 2024 Grand Design" },
+    { label: "Fix Issue", icon: <Wrench size={16} />, color: C.accent, prompt: "I need help diagnosing an issue with my RV" },
+    { label: "Plan Route", icon: <Navigation size={16} />, color: C.blue, prompt: "Help me plan a route for my upcoming trip" },
+    { label: "Find Site", icon: <Tent size={16} />, color: C.green, prompt: "Help me find a great campsite for my rig" },
   ];
 
   return (
     <div style={{ padding: "0 20px 100px", display: "flex", flexDirection: "column", gap: 28 }}>
-
-      {/* Greeting */}
       <div style={{ paddingTop: 28 }}>
         <div style={{ fontSize: 24, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>Good morning, Alex</div>
         <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{rigProfile.year} {rigProfile.make} · PA → Yellowstone</div>
       </div>
 
-      {/* Quick Actions — prominent, at top */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         {actions.map(a => (
-          <button key={a.label} onClick={() => openChat(a.prompt)}
-            style={{
-              padding: "16px 6px 14px", background: C.surface, border: `1px solid ${C.border}`,
-              borderRadius: 14, cursor: "pointer", fontFamily: "inherit",
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 9,
-              transition: "all 0.15s",
-            }}
+          <button key={a.label} onClick={() => goToCopilot(a.prompt)}
+            style={{ padding: "16px 6px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, transition: "all 0.15s" }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = a.color; e.currentTarget.style.background = `${a.color}11`; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}
           >
@@ -680,14 +630,13 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
         ))}
       </div>
 
-      {/* Route Weather */}
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Route Weather</span>
           <button onClick={openForecast} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Full Forecast →</button>
         </div>
         {weatherAlert.hasAlert && (
-          <div onClick={() => openChat(`reroute around weather warning: ${weatherAlert.message}`)}
+          <div onClick={() => goToCopilot(`reroute around weather warning: ${weatherAlert.message}`)}
             style={{ display: "flex", alignItems: "center", gap: 10, background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "11px 14px", marginBottom: 10, cursor: "pointer" }}>
             <AlertTriangle size={15} color={C.red} />
             <div style={{ flex: 1 }}>
@@ -700,7 +649,7 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
         <div style={{ display: "flex", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           {weatherPoints.map((pt, i) => (
             <div key={i} style={{ flex: 1, padding: "12px 4px", textAlign: "center", borderRight: i < weatherPoints.length - 1 ? `1px solid ${C.border}` : "none", background: pt.alert ? `${C.red}0D` : "transparent" }}>
-              <div style={{ fontSize: 9, color: pt.alert ? C.red : C.muted, fontWeight: 600, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.03em" }}>{pt.city}</div>
+              <div style={{ fontSize: 9, color: pt.alert ? C.red : C.muted, fontWeight: 600, marginBottom: 4, textTransform: "uppercase" }}>{pt.city}</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: pt.alert ? C.red : C.text }}>{pt.temp}°</div>
               <div style={{ fontSize: 9, color: pt.alert ? `${C.red}99` : C.muted, marginTop: 2 }}>{pt.wind}mph</div>
             </div>
@@ -708,20 +657,16 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
         </div>
       </div>
 
-      {/* Vibe Feed — just 2 cards, compact */}
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Vibe Feed {vibeLoading && <span style={{ color: C.muted, fontWeight: 400, fontSize: 11 }}>· loading...</span>}
+            Vibe Feed {vibeLoading && <span style={{ fontWeight: 400, fontSize: 11 }}>· loading...</span>}
           </span>
           <button onClick={openVibeFeed} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Browse All →</button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {vibeItems.map((v, i) => (
-            <a key={i}
-              href={v.url || "#"}
-              target={v.url ? "_blank" : "_self"}
-              rel="noopener noreferrer"
+            <a key={i} href={v.url || "#"} target={v.url ? "_blank" : "_self"} rel="noopener noreferrer"
               style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, textDecoration: "none", transition: "border-color 0.15s" }}
               onMouseEnter={e => e.currentTarget.style.borderColor = C.blue}
               onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
@@ -742,20 +687,19 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
           ))}
         </div>
       </div>
-
     </div>
   );
 }
 
 // ─── EXPLORE PAGE ──────────────────────────────────────────────────────
-function ExplorePage({ openChat }) {
+function ExplorePage({ goToCopilot }) {
   const spots = [
-    { name: "Limekiln Lake, NY", tag: "Kayak Base", rating: 4.8, dist: "210mi", emoji: "🚣", mode: "site", prompt: "Tell me about camping at Limekiln Lake NY for kayaking with my 30ft Grand Design trailer" },
-    { name: "Shenandoah NP, VA", tag: "Scenic Drive", rating: 4.9, dist: "180mi", emoji: "🏔️", mode: "route", prompt: "Plan a trip to Shenandoah National Park for my 2024 Grand Design, including rig-safe roads and campsite recommendations" },
-    { name: "Delaware Water Gap", tag: "Hiking", rating: 4.6, dist: "95mi", emoji: "🌊", mode: "site", prompt: "Find me a great campsite at Delaware Water Gap for my setup and tell me what to do there" },
-    { name: "Allegany SP, NY", tag: "Full Hookup", rating: 4.5, dist: "150mi", emoji: "🌲", mode: "site", prompt: "Tell me about Allegany State Park camping for a 30ft trailer with activities" },
-    { name: "Assateague Island", tag: "Beach/Ponies", rating: 4.9, dist: "230mi", emoji: "🏖️", mode: "site", prompt: "Tell me about camping at Assateague Island with my Grand Design trailer, wild ponies, and beach activities" },
-    { name: "Promised Land SP", tag: "Poconos", rating: 4.7, dist: "85mi", emoji: "⛺", mode: "site", prompt: "Tell me about Promised Land State Park camping near the Poconos for a weekend trip" },
+    { name: "Limekiln Lake, NY", tag: "Kayak Base", rating: 4.8, dist: "210mi", emoji: "🚣", prompt: "Tell me about camping at Limekiln Lake NY for kayaking with my trailer" },
+    { name: "Shenandoah NP, VA", tag: "Scenic Drive", rating: 4.9, dist: "180mi", emoji: "🏔️", prompt: "Plan a trip to Shenandoah National Park for my rig, including rig-safe roads and campsite recommendations" },
+    { name: "Delaware Water Gap", tag: "Hiking", rating: 4.6, dist: "95mi", emoji: "🌊", prompt: "Find me a great campsite at Delaware Water Gap and tell me what to do there" },
+    { name: "Allegany SP, NY", tag: "Full Hookup", rating: 4.5, dist: "150mi", emoji: "🌲", prompt: "Tell me about Allegany State Park camping for my trailer with activities" },
+    { name: "Assateague Island", tag: "Beach/Ponies", rating: 4.9, dist: "230mi", emoji: "🏖️", prompt: "Tell me about camping at Assateague Island with my trailer, wild ponies, and beach activities" },
+    { name: "Promised Land SP", tag: "Poconos", rating: 4.7, dist: "85mi", emoji: "⛺", prompt: "Tell me about Promised Land State Park camping near the Poconos for a weekend trip" },
   ];
   return (
     <div style={{ padding: "20px 16px 100px" }}>
@@ -763,7 +707,7 @@ function ExplorePage({ openChat }) {
       <div style={{ fontSize: 13, color: C.textSub, marginBottom: 16 }}>Top picks near State College, PA · <span style={{ color: C.blue }}>Tap any to get AI trip info</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {spots.map((s, i) => (
-          <Card key={i} onClick={() => openChat(s.prompt)} style={{ padding: 14 }}>
+          <Card key={i} onClick={() => goToCopilot(s.prompt)} style={{ padding: 14 }}>
             <div style={{ fontSize: 26, marginBottom: 8 }}>{s.emoji}</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 5 }}>{s.name}</div>
             <Badge color={C.blue} bg={C.blueSoft}>{s.tag}</Badge>
@@ -779,78 +723,25 @@ function ExplorePage({ openChat }) {
   );
 }
 
-// ─── CO-PILOT PAGE ─────────────────────────────────────────────────────
-function CoPilotPage({ openChat }) {
-  const suggestions = [
-    { label: "Diagnose an issue", prompt: "I need help diagnosing an issue with my RV", icon: <Wrench size={15} />, color: C.accent },
-    { label: "Plan a route", prompt: "Help me plan a route for my upcoming trip to Yellowstone", icon: <Navigation size={15} />, color: C.blue },
-    { label: "Find a campsite", prompt: "Find me a great campsite for my 2024 Grand Design", icon: <Tent size={15} />, color: C.green },
-    { label: "Maintenance checklist", prompt: "What maintenance should I do before a long trip?", icon: <Wrench size={15} />, color: C.accent },
-    { label: "Boondocking spots", prompt: "Find me great boondocking spots within 300 miles", icon: <Tent size={15} />, color: C.green },
-    { label: "Check bridge clearances", prompt: "Are there any low bridge warnings on my route?", icon: <Navigation size={15} />, color: C.blue },
-  ];
-  return (
-    <div style={{ padding: "20px 20px 100px" }}>
-      <div style={{ textAlign: "center", padding: "24px 0 28px" }}>
-        <div style={{ width: 64, height: 64, borderRadius: 20, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <Bot size={30} color="#fff" />
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: "-0.03em", marginBottom: 8 }}>Waymark AI</div>
-        <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.55, maxWidth: 280, margin: "0 auto" }}>
-          One assistant for everything — repairs, routes, campsites, and more. Knows your rig profile by heart.
-        </div>
-      </div>
-      <button onClick={() => openChat(null)}
-        style={{ width: "100%", padding: "15px", background: C.accent, border: "none", borderRadius: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 15, color: "#1A0800", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-        <MessageSquare size={17} color="#1A0800" />
-        Start a Conversation
-      </button>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.muted, marginBottom: 12 }}>Try asking</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {suggestions.map((s, i) => (
-          <button key={i} onClick={() => openChat(s.prompt)}
-            style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.background = `${s.color}0D`; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}
-          >
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: `${s.color}18`, display: "flex", alignItems: "center", justifyContent: "center", color: s.color, flexShrink: 0 }}>
-              {s.icon}
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{s.label}</span>
-            <ChevronRight size={14} color={C.muted} style={{ marginLeft: "auto" }} />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── MAIN APP ──────────────────────────────────────────────────────────
 export default function App({ user }) {
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("home");
   const [subPage, setSubPage] = useState(null);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatKey, setChatKey] = useState(0);
-  const [chatPrefill, setChatPrefill] = useState(null);
+  const [copilotPrefill, setCopilotPrefill] = useState(null);
+  const [copilotKey, setCopilotKey] = useState(0);
   const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [rigProfile, setRigProfile] = useState({
     year: "2024", make: "Grand Design", model: "Imagine XLS 21BHE",
-    floorPlan: "21BHE",
-    length: "29'11\"", height: "11'0\"",
+    floorPlan: "21BHE", length: "29'11\"", height: "11'0\"",
     subs: ["Harvest Hosts", "KOA"],
   });
 
-  // Load rig profile from Supabase on mount
   useEffect(() => {
     async function loadProfile() {
       if (!user) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       if (data && !error) {
         setRigProfile({
           year: data.year || "2024",
@@ -868,35 +759,25 @@ export default function App({ user }) {
     loadProfile();
   }, [user]);
 
-  // Save rig profile to Supabase whenever it changes
   useEffect(() => {
     async function saveProfile() {
       if (!user || profileLoading) return;
       await supabase.from("profiles").upsert({
         id: user.id,
-        year: rigProfile.year,
-        make: rigProfile.make,
-        model: rigProfile.model,
-        floor_plan: rigProfile.floorPlan,
-        length: rigProfile.length,
-        height: rigProfile.height,
-        subs: rigProfile.subs,
-        first_time_buyer: firstTimeBuyer,
+        year: rigProfile.year, make: rigProfile.make, model: rigProfile.model,
+        floor_plan: rigProfile.floorPlan, length: rigProfile.length, height: rigProfile.height,
+        subs: rigProfile.subs, first_time_buyer: firstTimeBuyer,
         updated_at: new Date().toISOString(),
       });
     }
     saveProfile();
   }, [rigProfile, firstTimeBuyer]);
 
-  function openChat(prefill = null) {
-    setChatPrefill(prefill);
-    setChatKey(k => k + 1);
-    setChatOpen(true);
-  }
-
-  function closeChat() {
-    setChatOpen(false);
-    setChatPrefill(null);
+  function goToCopilot(prefill = null) {
+    setCopilotPrefill(prefill);
+    setCopilotKey(k => k + 1);
+    setTab("copilot");
+    setSubPage(null);
   }
 
   async function handleSignOut() {
@@ -906,8 +787,8 @@ export default function App({ user }) {
   const navItems = [
     { key: "home", icon: <Home size={20} />, label: "Home" },
     { key: "copilot", icon: <Bot size={20} />, label: "Co-Pilot" },
-    { key: "explore", icon: <Compass size={20} />, label: "Explore" },
     { key: "sites", icon: <Tent size={20} />, label: "Sites" },
+    { key: "explore", icon: <Compass size={20} />, label: "Explore" },
     { key: "profile", icon: <User size={20} />, label: "Rig" },
   ];
 
@@ -919,78 +800,146 @@ export default function App({ user }) {
     );
   }
 
-  return (
-    <div style={{ fontFamily: "'DM Sans', 'IBM Plex Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", color: C.text, maxWidth: 430, margin: "0 auto", position: "relative", boxShadow: "0 0 80px #00000088" }}>
-
-      {/* Top bar */}
-      <div style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.bg}EE`, backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {subPage && (
-            <button onClick={() => setSubPage(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
-              <ArrowLeft size={18} />
-            </button>
-          )}
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Navigation size={14} color="#fff" strokeWidth={2.5} />
-          </div>
-          <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em", color: C.text }}>waymark</span>
+  // ── CONTENT ────────────────────────────────────────────────────────
+  const content = (
+    <>
+      {tab === "home" && !subPage && <Dashboard goToCopilot={goToCopilot} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} />}
+      {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
+      {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
+      {tab === "explore" && <ExplorePage goToCopilot={goToCopilot} />}
+      {tab === "sites" && <CampsiteSearch rigProfile={rigProfile} openChat={goToCopilot} />}
+      {tab === "copilot" && (
+        <div style={{ height: isMobile ? "calc(100vh - 130px)" : "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
+          <InlineChat key={copilotKey} rigProfile={rigProfile} firstTimeBuyer={firstTimeBuyer} prefillMessage={copilotPrefill} />
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => openChat("alert")} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
-            <Bell size={15} />
-          </button>
-          <button onClick={handleSignOut} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
-            <User size={15} />
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div>
-        {tab === "home" && !subPage && <Dashboard openChat={openChat} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} />}
-        {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
-        {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
-        {tab === "explore" && <ExplorePage openChat={openChat} />}
-        {tab === "sites" && <CampsiteSearch rigProfile={rigProfile} openChat={openChat} />}
-        {tab === "copilot" && <CoPilotPage openChat={openChat} />}
-        {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} />}
-      </div>
-
-      {/* Bottom Nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: `${C.bg}F8`, backdropFilter: "blur(16px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "8px 0 20px", zIndex: 49 }}>
-        {navItems.map(n => {
-          const active = tab === n.key;
-          return (
-            <button key={n.key}
-              onClick={() => {
-                setSubPage(null);
-                if (n.key === "copilot") {
-                  setTab("copilot");
-                } else {
-                  setTab(n.key);
-                }
-              }}
-              style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 0", fontFamily: "inherit" }}>
-              <div style={{ color: active ? C.accent : C.muted, transition: "color 0.15s" }}>{n.icon}</div>
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? C.accent : C.muted, transition: "color 0.15s" }}>{n.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Chat Overlay */}
-      {chatOpen && (
-        <>
-          <div onClick={closeChat} style={{ position: "fixed", inset: 0, background: "#00000077", zIndex: 99, backdropFilter: "blur(2px)" }} />
-          <ChatPanel
-            key={chatKey}
-            onClose={closeChat}
-            rigProfile={rigProfile}
-            firstTimeBuyer={firstTimeBuyer}
-            prefillMessage={chatPrefill}
-          />
-        </>
       )}
+      {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} />}
+    </>
+  );
+
+  // ── MOBILE LAYOUT ─────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", color: C.text }}>
+        {/* Top bar */}
+        <div style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.bg}EE`, backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {subPage && (
+              <button onClick={() => setSubPage(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Navigation size={14} color="#fff" strokeWidth={2.5} />
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em", color: C.text }}>waymark</span>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => goToCopilot("Show me my current rig alerts")} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
+              <Bell size={15} />
+            </button>
+            <button onClick={handleSignOut} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
+              <User size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div>{content}</div>
+
+        {/* Bottom Nav */}
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: `${C.bg}F8`, backdropFilter: "blur(16px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "8px 0 20px", zIndex: 49 }}>
+          {navItems.map(n => {
+            const active = tab === n.key;
+            return (
+              <button key={n.key} onClick={() => { setSubPage(null); setTab(n.key); }}
+                style={{ flex: 1, background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "4px 0", fontFamily: "inherit" }}>
+                <div style={{ color: active ? C.accent : C.muted, transition: "color 0.15s" }}>{n.icon}</div>
+                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? C.accent : C.muted }}>{n.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── DESKTOP LAYOUT ────────────────────────────────────────────────
+  return (
+    <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", color: C.text, display: "flex" }}>
+
+      {/* Sidebar */}
+      <div style={{ width: 220, flexShrink: 0, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", position: "fixed", top: 0, bottom: 0, left: 0, zIndex: 50 }}>
+        {/* Logo */}
+        <div style={{ padding: "20px 20px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Navigation size={16} color="#fff" strokeWidth={2.5} />
+          </div>
+          <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: "-0.03em", color: C.text }}>waymark</span>
+        </div>
+
+        {/* Nav items */}
+        <div style={{ flex: 1, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
+          {navItems.map(n => {
+            const active = tab === n.key;
+            return (
+              <button key={n.key} onClick={() => { setSubPage(null); setTab(n.key); }}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, border: "none", background: active ? C.accentSoft : "transparent", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "background 0.15s", width: "100%" }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = C.surfaceAlt; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{ color: active ? C.accent : C.muted }}>{n.icon}</div>
+                <span style={{ fontSize: 14, fontWeight: active ? 700 : 500, color: active ? C.accent : C.textSub }}>{n.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Rig summary + sign out */}
+        <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.border}` }}>
+          {rigProfile.make && (
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>
+              <div style={{ fontWeight: 600, color: C.textSub }}>{rigProfile.year} {rigProfile.make}</div>
+              <div>{rigProfile.model} {rigProfile.floorPlan}</div>
+              <div>{rigProfile.length} · {rigProfile.height}</div>
+            </div>
+          )}
+          <button onClick={handleSignOut}
+            style={{ width: "100%", padding: "8px 12px", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8 }}>
+            <User size={14} />
+            Sign Out
+          </button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ marginLeft: 220, flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        {/* Top bar */}
+        <div style={{ position: "sticky", top: 0, zIndex: 40, background: `${C.bg}EE`, backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.border}`, padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {subPage && (
+              <button onClick={() => setSubPage(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            <span style={{ fontWeight: 700, fontSize: 16, color: C.textSub }}>
+              {navItems.find(n => n.key === tab)?.label}
+              {subPage === "forecast" && " · Full Forecast"}
+              {subPage === "vibefeed" && " · Vibe Feed"}
+            </span>
+          </div>
+          <button onClick={() => goToCopilot("Show me my current rig alerts")}
+            style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: "inherit" }}>
+            <Bell size={15} />
+            Alerts
+          </button>
+        </div>
+
+        {/* Page content */}
+        <div style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "0 24px" }}>
+          {content}
+        </div>
+      </div>
     </div>
   );
 }
