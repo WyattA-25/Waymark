@@ -421,20 +421,6 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
       </div>
 
       <div>
-        <SectionLabel>Tank Capacities (gal)</SectionLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-          {[{ label: "Fresh", key: "freshTank", color: C.blue }, { label: "Gray", key: "grayTank", color: C.accent }, { label: "Black", key: "blackTank", color: C.muted }].map(({ label, key, color }) => (
-            <div key={key} style={{ background: C.surfaceAlt, borderRadius: 10, padding: 12, textAlign: "center", border: `1px solid ${C.border}` }}>
-              <Droplets size={16} color={color} style={{ margin: "0 auto 4px" }} />
-              <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, textTransform: "uppercase" }}>{label}</div>
-              <input value={rigProfile[key]} onChange={e => setRigProfile(p => ({ ...p, [key]: e.target.value }))}
-                style={{ width: "100%", background: "transparent", border: "none", color, fontSize: 16, fontWeight: 700, textAlign: "center", fontFamily: "inherit", outline: "none" }} />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
         <SectionLabel>Subscriptions</SectionLabel>
         {/* Use a standard block layout so it wraps and scrolls naturally */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
