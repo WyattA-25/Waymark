@@ -253,6 +253,23 @@ const RESPONSES = {
   "alert": "Here are your current rig alerts:\n\n🔴 **Critical:**\n• Water Filter — **OVERDUE** for replacement\n\n🟡 **Upcoming:**\n• Tire Pressure Check — Due in 3 days\n• Black Tank Treatment — Due in 5 days\n\n🟢 **On Track:**\n• Slide Seal Lubrication — Due in 2 weeks\n• Annual Inspection — 2 months out\n\n📍 **Route Alert:**\nHigh Wind Warning active on your PA → Yellowstone route (Casper, WY — 52mph gusts). Recommend rerouting or delaying Day 5 transit.\n\nWant me to open any of these in detail?",
 };
 
+const RIG_MODELS = {
+  "Airstream": ["Bambi", "Caravel", "Flying Cloud", "International", "Globetrotter", "Classic", "Basecamp"],
+  "Grand Design": ["Imagine", "Imagine XLS", "Reflection", "Solitude", "Transcend", "Momentum"],
+  "Keystone": ["Hideout", "Springdale", "Passport", "Cougar", "Montana", "Raptor", "Fuzion", "Outback"],
+  "Forest River": ["Cherokee", "Rockwood", "Flagstaff", "Salem", "Wildwood", "Cardinal", "Georgetown"],
+  "Winnebago": ["Micro Minnie", "Minnie", "Voyage", "View", "Navion", "Intent", "Vita", "Solis"],
+  "Jayco": ["Jay Flight", "Jay Feather", "Eagle", "Greyhawk", "Precept", "Seismic", "Pinnacle"],
+  "Coachmen": ["Apex", "Freedom Express", "Catalina", "Clipper", "Prism", "Galleria"],
+  "Thor Motor Coach": ["Chateau", "Four Winds", "Quantum", "Axis", "Vegas", "Magnitude"],
+  "Lance": ["1475", "1685", "1995", "2185", "2375", "2465"],
+  "Heartland": ["Mallard", "Pioneer", "Trail Runner", "Big Country", "Cyclone", "Torque"],
+  "Tiffin": ["Allegro", "Phaeton", "Breeze", "Wayfarer", "Zephyr"],
+  "Newmar": ["Bay Star", "Dutch Star", "King Aire", "Ventana", "Canyon Star"],
+  "Fleetwood": ["Bounder", "Discovery", "Southwind", "Tioga", "Flair"],
+  "Other": ["Custom / Other"],
+};
+
 function getResponse(input) {
   const lower = input.toLowerCase();
   for (const [key, val] of Object.entries(RESPONSES)) {
@@ -409,14 +426,68 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
 
       <div>
         <SectionLabel>Rig Profile</SectionLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[{ label: "Year", key: "year" }, { label: "Make", key: "make" }, { label: "Model", key: "model" }, { label: "Length", key: "length" }, { label: "Height", key: "height" }].map(({ label, key }) => (
-            <div key={key}>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
-              <input value={rigProfile[key]} onChange={e => setRigProfile(p => ({ ...p, [key]: e.target.value }))}
-                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Year */}
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Year</div>
+            <select value={rigProfile.year} onChange={e => setRigProfile(p => ({ ...p, year: e.target.value }))}
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
+              {Array.from({ length: 16 }, (_, i) => String(2026 - i)).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+
+          {/* Make */}
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Make</div>
+            <select value={rigProfile.make}
+              onChange={e => {
+                const make = e.target.value;
+                const firstModel = RIG_MODELS[make]?.[0] || "";
+                setRigProfile(p => ({ ...p, make, model: firstModel }));
+              }}
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
+              <option value="">Select a brand...</option>
+              {Object.keys(RIG_MODELS).map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          {/* Model */}
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Model</div>
+            <select value={rigProfile.model} onChange={e => setRigProfile(p => ({ ...p, model: e.target.value }))}
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", opacity: rigProfile.make ? 1 : 0.5 }}
+              disabled={!rigProfile.make}>
+              <option value="">Select a model...</option>
+              {(RIG_MODELS[rigProfile.make] || []).map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          {/* Length + Height */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Length</div>
+              <input value={rigProfile.length} onChange={e => setRigProfile(p => ({ ...p, length: e.target.value }))}
+                placeholder="e.g. 29'11&quot;" style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
             </div>
-          ))}
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Height</div>
+              <input value={rigProfile.height} onChange={e => setRigProfile(p => ({ ...p, height: e.target.value }))}
+                placeholder="e.g. 11'0&quot;" style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+            </div>
+          </div>
+
+          {/* Summary pill */}
+          {rigProfile.make && rigProfile.model && (
+            <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>🚐</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>{rigProfile.year} {rigProfile.make} {rigProfile.model}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 1 }}>{rigProfile.length && rigProfile.height ? `${rigProfile.length} · ${rigProfile.height} tall` : "Add length and height"}</div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
