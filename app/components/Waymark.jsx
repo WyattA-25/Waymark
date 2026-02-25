@@ -1,5 +1,6 @@
 "use client";
 
+import { supabase } from "../../lib/supabase";
 import { useState, useRef, useEffect } from "react";
 import {
   Wind, Cloud, Droplets, AlertTriangle,
@@ -679,19 +680,71 @@ function CoPilotPage({ openChat }) {
 }
 
 // ─── MAIN APP ──────────────────────────────────────────────────────────
-export default function App() {
+export default function App({ user }) {
   const [tab, setTab] = useState("home");
   const [subPage, setSubPage] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatKey, setChatKey] = useState(0);
   const [chatPrefill, setChatPrefill] = useState(null);
   const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [rigProfile, setRigProfile] = useState({
     year: "2024", make: "Grand Design", model: "Imagine XLS 21BHE",
     length: "29'11\"", height: "11'0\"",
     freshTank: "52", grayTank: "82", blackTank: "45",
     subs: ["Harvest Hosts", "KOA"],
   });
+
+  // Load rig profile from Supabase on mount
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (data && !error) {
+        setRigProfile({
+          year: data.year || "2024",
+          make: data.make || "Grand Design",
+          model: data.model || "Imagine XLS 21BHE",
+          length: data.length || "29'11\"",
+          height: data.height || "11'0\"",
+          freshTank: data.fresh_tank || "52",
+          grayTank: data.gray_tank || "82",
+          blackTank: data.black_tank || "45",
+          subs: data.subs || ["Harvest Hosts", "KOA"],
+        });
+        setFirstTimeBuyer(data.first_time_buyer || false);
+      }
+      setProfileLoading(false);
+    }
+    loadProfile();
+  }, [user]);
+
+  // Save rig profile to Supabase whenever it changes
+  useEffect(() => {
+    async function saveProfile() {
+      if (!user || profileLoading) return;
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        year: rigProfile.year,
+        make: rigProfile.make,
+        model: rigProfile.model,
+        length: rigProfile.length,
+        height: rigProfile.height,
+        fresh_tank: rigProfile.freshTank,
+        gray_tank: rigProfile.grayTank,
+        black_tank: rigProfile.blackTank,
+        subs: rigProfile.subs,
+        first_time_buyer: firstTimeBuyer,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    saveProfile();
+  }, [rigProfile, firstTimeBuyer]);
 
   function openChat(prefill = null) {
     setChatPrefill(prefill);
@@ -704,12 +757,24 @@ export default function App() {
     setChatPrefill(null);
   }
 
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+  }
+
   const navItems = [
     { key: "home", icon: <Home size={20} />, label: "Home" },
     { key: "explore", icon: <Compass size={20} />, label: "Explore" },
     { key: "copilot", icon: <Bot size={20} />, label: "Co-Pilot" },
     { key: "profile", icon: <User size={20} />, label: "Rig" },
   ];
+
+  if (profileLoading) {
+    return (
+      <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ color: C.accent, fontSize: 14, fontFamily: "system-ui" }}>Loading your rig...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ fontFamily: "'DM Sans', 'IBM Plex Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", color: C.text, maxWidth: 430, margin: "0 auto", position: "relative", boxShadow: "0 0 80px #00000088" }}>
@@ -731,7 +796,7 @@ export default function App() {
           <button onClick={() => openChat("alert")} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
             <Bell size={15} />
           </button>
-          <button onClick={() => { setTab("profile"); setSubPage(null); }} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
+          <button onClick={handleSignOut} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
             <User size={15} />
           </button>
         </div>
