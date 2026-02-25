@@ -163,6 +163,7 @@ function FullVibePage({ onBack, rigProfile }) {
   const [activeCat, setActiveCat] = useState("All");
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const catQueries = {
     "All": "RV camping tips",
@@ -174,41 +175,67 @@ function FullVibePage({ onBack, rigProfile }) {
     "Gear": "RV gear equipment",
   };
 
-  useEffect(() => {
-    async function fetchVideos() {
-      setLoading(true);
-      try {
-        const base = rigProfile?.make ? `${rigProfile.make} RV` : "RV";
-        const query = `${base} ${catQueries[activeCat]}`;
-        const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (data.videos) setVideos(data.videos);
-      } catch (err) {
-        console.error("Failed to load vibe feed:", err);
-      } finally {
-        setLoading(false);
-      }
+  async function fetchVideos(customSearch = "") {
+    setLoading(true);
+    try {
+      const base = rigProfile?.make ? `${rigProfile.make} RV` : "RV";
+      const query = customSearch.trim()
+        ? `${base} ${customSearch}`
+        : `${base} ${catQueries[activeCat]}`;
+      const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data.videos) setVideos(data.videos);
+    } catch (err) {
+      console.error("Failed to load vibe feed:", err);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     fetchVideos();
   }, [activeCat]);
 
   return (
     <div style={{ padding: "0 16px 100px" }}>
+
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0 16px" }}>
-        <button onClick={onBack} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}><ArrowLeft size={16} /></button>
+        <button onClick={onBack} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}>
+          <ArrowLeft size={16} />
+        </button>
         <div>
           <div style={{ fontWeight: 800, fontSize: 18, color: C.text, letterSpacing: "-0.02em" }}>Vibe Feed</div>
           <div style={{ fontSize: 12, color: C.textSub }}>{loading ? "Loading..." : `${videos.length} videos`}</div>
         </div>
       </div>
+
+      {/* Search bar */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && fetchVideos(search)}
+          placeholder={`Search ${rigProfile?.make || "RV"} videos...`}
+          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+        />
+        <button onClick={() => fetchVideos(search)}
+          style={{ padding: "9px 16px", background: C.accent, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#1A0800", fontFamily: "inherit" }}>
+          Search
+        </button>
+      </div>
+
+      {/* Category pills */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 4 }}>
         {cats.map(c => (
-          <button key={c} onClick={() => setActiveCat(c)}
-            style={{ whiteSpace: "nowrap", padding: "6px 14px", borderRadius: 20, border: `1px solid ${activeCat === c ? C.accent : C.border}`, background: activeCat === c ? C.accentSoft : "transparent", color: activeCat === c ? C.accent : C.textSub, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+          <button key={c} onClick={() => { setSearch(""); setActiveCat(c); }}
+            style={{ whiteSpace: "nowrap", padding: "6px 14px", borderRadius: 20, border: `1px solid ${activeCat === c && !search ? C.accent : C.border}`, background: activeCat === c && !search ? C.accentSoft : "transparent", color: activeCat === c && !search ? C.accent : C.textSub, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             {c}
           </button>
         ))}
       </div>
+
+      {/* Videos */}
       {loading ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[1,2,3,4].map(i => <div key={i} style={{ height: 76, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, opacity: 0.5 }} />)}
@@ -554,26 +581,27 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
   ]);
   const [vibeLoading, setVibeLoading] = useState(false);
 
-  useEffect(() => {
-    async function loadVideos() {
-      setVibeLoading(true);
-      try {
-        const query = `${rigProfile.make} ${rigProfile.model} RV camping`;
-        const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
-        const data = await res.json();
-        if (data.videos && data.videos.length > 0) {
-          const tags = ["Tips", "DIY", "Adventure", "Off-Grid", "Routes", "Gear"];
-          setVibeItems(data.videos.slice(0, 3).map((v, i) => ({
-            title: v.title, channel: v.channel, thumb: v.thumbnail,
-            tag: tags[i % tags.length], url: v.url, isReal: true,
-          })));
-        }
-      } catch (err) {
-        console.error("Failed to load videos:", err);
-      } finally {
-        setVibeLoading(false);
+  async function loadVideos() {
+    setVibeLoading(true);
+    try {
+      const query = `${rigProfile.make} ${rigProfile.model} RV camping`;
+      const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (data.videos && data.videos.length > 0) {
+        const tags = ["Tips", "DIY", "Adventure", "Off-Grid", "Routes", "Gear"];
+        setVibeItems(data.videos.slice(0, 3).map((v, i) => ({
+          title: v.title, channel: v.channel, thumb: v.thumbnail,
+          tag: tags[i % tags.length], url: v.url, isReal: true,
+        })));
       }
+    } catch (err) {
+      console.error("Failed to load videos:", err);
+    } finally {
+      setVibeLoading(false);
     }
+  }
+
+  useEffect(() => {
     loadVideos();
   }, [rigProfile.make, rigProfile.model]);
 
