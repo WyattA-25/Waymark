@@ -147,54 +147,81 @@ function FullForecastPage({ onBack }) {
 }
 
 // ─── FULL VIBE FEED PAGE ───────────────────────────────────────────────
-function FullVibePage({ onBack }) {
+function FullVibePage({ onBack, rigProfile }) {
   const cats = ["All", "DIY", "Adventure", "Off-Grid", "Tips", "Routes", "Gear"];
   const [activeCat, setActiveCat] = useState("All");
-  const items = [
-    { title: "Kayaking the Tetons — Summer 2024 Highlights", channel: "PaddleNomad", views: "142K", dur: "18:32", thumb: "🏔️", tag: "Adventure", likes: "4.2K" },
-    { title: "Grand Design 2600RB Full Solar Upgrade Build", channel: "VoltageVanlife", views: "89K", dur: "24:15", thumb: "⚡", tag: "DIY", likes: "2.1K" },
-    { title: "Boondocking Joshua Tree: 7 Days Off-Grid", channel: "DustRoads", views: "203K", dur: "31:07", thumb: "🌵", tag: "Off-Grid", likes: "8.7K" },
-    { title: "Top 5 Mistakes First-Time RVers Make", channel: "Campfire Counsel", views: "511K", dur: "12:49", thumb: "🔥", tag: "Tips", likes: "14.3K" },
-    { title: "Water Filter Bypass Mod — Grand Design Imagine", channel: "DIY RV Life", views: "34K", dur: "9:22", thumb: "🔧", tag: "DIY", likes: "1.2K" },
-    { title: "Best Full-Timer Routes in the Mountain West", channel: "RollingSagebrush", views: "77K", dur: "21:11", thumb: "🗺️", tag: "Routes", likes: "3.4K" },
-    { title: "Budget Gear for Your First Season", channel: "Campfire Counsel", views: "198K", dur: "15:55", thumb: "🎒", tag: "Gear", likes: "6.8K" },
-    { title: "Solo Camping the Adirondacks in a 30ft Trailer", channel: "PaddleNomad", views: "61K", dur: "28:44", thumb: "🌲", tag: "Adventure", likes: "2.9K" },
-  ];
-  const filtered = activeCat === "All" ? items : items.filter(i => i.tag === activeCat);
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const catQueries = {
+    "All": "RV camping tips",
+    "DIY": "RV DIY modifications",
+    "Adventure": "RV adventure camping",
+    "Off-Grid": "RV boondocking off grid",
+    "Tips": "RV tips tricks beginners",
+    "Routes": "RV road trip route",
+    "Gear": "RV gear equipment",
+  };
+
+  useEffect(() => {
+    async function fetchVideos() {
+      setLoading(true);
+      try {
+        const base = rigProfile?.make ? `${rigProfile.make} RV` : "RV";
+        const query = `${base} ${catQueries[activeCat]}`;
+        const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.videos) setVideos(data.videos);
+      } catch (err) {
+        console.error("Failed to load vibe feed:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchVideos();
+  }, [activeCat]);
+
   return (
     <div style={{ padding: "0 16px 100px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0 16px" }}>
         <button onClick={onBack} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}><ArrowLeft size={16} /></button>
         <div>
           <div style={{ fontWeight: 800, fontSize: 18, color: C.text, letterSpacing: "-0.02em" }}>Vibe Feed</div>
-          <div style={{ fontSize: 12, color: C.textSub }}>Curated for your Grand Design setup</div>
+          <div style={{ fontSize: 12, color: C.textSub }}>{loading ? "Loading..." : `${videos.length} videos`}</div>
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 4 }}>
         {cats.map(c => (
           <button key={c} onClick={() => setActiveCat(c)}
-            style={{ whiteSpace: "nowrap", padding: "6px 14px", borderRadius: 20, border: `1px solid ${activeCat === c ? C.accent : C.border}`, background: activeCat === c ? C.accentSoft : "transparent", color: activeCat === c ? C.accent : C.textSub, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+            style={{ whiteSpace: "nowrap", padding: "6px 14px", borderRadius: 20, border: `1px solid ${activeCat === c ? C.accent : C.border}`, background: activeCat === c ? C.accentSoft : "transparent", color: activeCat === c ? C.accent : C.textSub, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
             {c}
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filtered.map((v, i) => (
-          <Card key={i} style={{ display: "flex", gap: 12, padding: 12 }}>
-            <div style={{ width: 88, height: 56, background: `linear-gradient(135deg, #1C2330, #2D3748)`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0, border: `1px solid ${C.border}` }}>
-              {v.thumb}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, marginBottom: 4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{v.title}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                <Badge color={C.blue} bg={C.blueSoft}>{v.tag}</Badge>
-                <span style={{ fontSize: 10, color: C.muted }}>{v.channel}</span>
+      {loading ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[1,2,3,4].map(i => <div key={i} style={{ height: 76, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, opacity: 0.5 }} />)}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {videos.map((v, i) => (
+            <a key={i} href={v.url} target="_blank" rel="noopener noreferrer"
+              style={{ display: "flex", gap: 12, padding: 12, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, textDecoration: "none", transition: "border-color 0.15s" }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = C.blue}
+              onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
+            >
+              <img src={v.thumbnail} alt={v.title} style={{ width: 88, height: 56, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, marginBottom: 4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{v.title}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Badge color={C.blue} bg={C.blueSoft}>{activeCat === "All" ? "RV" : activeCat}</Badge>
+                  <span style={{ fontSize: 10, color: C.muted }}>{v.channel}</span>
+                </div>
               </div>
-              <div style={{ fontSize: 10, color: C.muted }}>{v.views} views · 👍 {v.likes} · ⏱ {v.dur}</div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -837,7 +864,7 @@ export default function App({ user }) {
       <div>
         {tab === "home" && !subPage && <Dashboard openChat={openChat} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} />}
         {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
-        {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} />}
+        {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
         {tab === "explore" && <ExplorePage openChat={openChat} />}
         {tab === "sites" && <CampsiteSearch rigProfile={rigProfile} openChat={openChat} />}
         {tab === "copilot" && <CoPilotPage openChat={openChat} />}
