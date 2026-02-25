@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "../../lib/supabase";
+import CampsiteSearch from "./CampsiteSearch";
 import { useState, useRef, useEffect } from "react";
 import {
   Wind, Cloud, Droplets, AlertTriangle,
@@ -793,6 +794,7 @@ export default function App({ user }) {
   const navItems = [
     { key: "home", icon: <Home size={20} />, label: "Home" },
     { key: "explore", icon: <Compass size={20} />, label: "Explore" },
+    { key: "sites", icon: <Tent size={20} />, label: "Sites" },
     { key: "copilot", icon: <Bot size={20} />, label: "Co-Pilot" },
     { key: "profile", icon: <User size={20} />, label: "Rig" },
   ];
@@ -837,6 +839,7 @@ export default function App({ user }) {
         {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
         {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} />}
         {tab === "explore" && <ExplorePage openChat={openChat} />}
+        {tab === "sites" && <CampsiteSearch rigProfile={rigProfile} openChat={openChat} />}
         {tab === "copilot" && <CoPilotPage openChat={openChat} />}
         {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} />}
       </div>
