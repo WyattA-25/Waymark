@@ -472,13 +472,36 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
     }
     loadVideos();
   }, [rigProfile.make, rigProfile.model]);
-  const weatherPoints = [
-    { city: "Pittsburgh", temp: 62, wind: 12, status: "Clear", alert: false },
-    { city: "Columbus", temp: 58, wind: 19, status: "Breezy", alert: false },
-    { city: "St. Louis", temp: 71, wind: 8, status: "Clear", alert: false },
-    { city: "Casper", temp: 44, wind: 52, status: "HIGH WIND", alert: true },
-    { city: "Yellowstone", temp: 38, wind: 34, status: "Gusts", alert: false },
-  ];
+  const [weatherPoints, setWeatherPoints] = useState([
+    { city: "Pittsburgh", temp: "--", wind: "--", status: "Loading", alert: false },
+    { city: "Columbus", temp: "--", wind: "--", status: "Loading", alert: false },
+    { city: "St. Louis", temp: "--", wind: "--", status: "Loading", alert: false },
+    { city: "Casper", temp: "--", wind: "--", status: "Loading", alert: false },
+    { city: "Yellowstone", temp: "--", wind: "--", status: "Loading", alert: false },
+  ]);
+  const [weatherAlert, setWeatherAlert] = useState({
+    hasAlert: true,
+    message: "High Wind Warning · Casper, WY (52mph gusts)",
+  });
+
+  useEffect(() => {
+    async function loadWeather() {
+      try {
+        const res = await fetch("/api/weather");
+        const data = await res.json();
+        if (data.weatherPoints) {
+          setWeatherPoints(data.weatherPoints);
+          setWeatherAlert({
+            hasAlert: data.hasAlert,
+            message: data.alertMessage || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load weather:", err);
+      }
+    }
+    loadWeather();
+  }, []);
 
   const actions = [
     { label: "Fix Issue", icon: <Wrench size={16} />, color: C.accent, mode: "mechanic", prompt: "I need help diagnosing an issue with my RV" },
@@ -517,6 +540,43 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
       </div>
 
       {/* Weather — stripped back, alert-first */}
+      {weatherAlert.hasAlert && (
+          <div onClick={() => openChat(`reroute around weather warning: ${weatherAlert.message}`)}
+            style={{ display: "flex", alignItems: "center", gap: 10, background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "11px 14px", marginBottom: 10, cursor: "pointer" }}>
+            <AlertTriangle size={15} color={C.red} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.red }}>{weatherAlert.message}</div>
+              <div style={{ fontSize: 11, color: `${C.red}BB`, marginTop: 1 }}>Tap to reroute</div>
+            </div>
+            <ChevronRight size={14} color={C.red} />
+          </div>
+        )}
+
+      {/* Market Watch — minimal */}
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Market Watch</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {isUp ? <TrendingUp size={12} color={C.green} /> : <TrendingDown size={12} color={C.red} />}
+            <span style={{ fontSize: 12, fontWeight: 700, color: isUp ? C.green : C.red }}>{isUp ? "+" : ""}{delta}%</span>
+          </div>
+        </div>
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{rigProfile.year} {rigProfile.make} Imagine</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>${cur.toLocaleString()}</div>
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
+              <div>Est. trade-in</div>
+              <div style={{ color: isUp ? C.green : C.red, fontWeight: 700, marginTop: 2 }}>{isUp ? "▲" : "▼"} trending</div>
+            </div>
+          </div>
+          <Sparkline data={marketData} color={isUp ? C.green : C.red} height={36} />
+        </div>
+      </div>
+
+      {/* Vibe Feed — just 2 cards, compact */}
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -547,52 +607,6 @@ function Dashboard({ openChat, openForecast, openVibeFeed, rigProfile }) {
                 </div>
               </div>
             </a>
-          ))}
-        </div>
-      </div>
-
-      {/* Market Watch — minimal */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Market Watch</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            {isUp ? <TrendingUp size={12} color={C.green} /> : <TrendingDown size={12} color={C.red} />}
-            <span style={{ fontSize: 12, fontWeight: 700, color: isUp ? C.green : C.red }}>{isUp ? "+" : ""}{delta}%</span>
-          </div>
-        </div>
-        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "16px 18px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{rigProfile.year} {rigProfile.make} Imagine</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>${cur.toLocaleString()}</div>
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
-              <div>Est. trade-in</div>
-              <div style={{ color: isUp ? C.green : C.red, fontWeight: 700, marginTop: 2 }}>{isUp ? "▲" : "▼"} trending</div>
-            </div>
-          </div>
-          <Sparkline data={marketData} color={isUp ? C.green : C.red} height={36} />
-        </div>
-      </div>
-
-      {/* Vibe Feed — just 2 cards, compact */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Vibe Feed</span>
-          <button onClick={openVibeFeed} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Browse All →</button>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {vibeItems.map((v, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}` }}>
-              <div style={{ width: 44, height: 44, borderRadius: 10, background: `${C.surfaceAlt}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0, border: `1px solid ${C.border}` }}>{v.thumb}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", marginBottom: 4 }}>{v.title}</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Badge color={C.blue} bg={C.blueSoft}>{v.tag}</Badge>
-                  <span style={{ fontSize: 10, color: C.muted }}>{v.dur}</span>
-                </div>
-              </div>
-            </div>
           ))}
         </div>
       </div>
