@@ -3,6 +3,7 @@
 import { supabase } from "../../lib/supabase";
 import CampsiteSearch from "./CampsiteSearch";
 import { useState, useRef, useEffect } from "react";
+import { useWebLLM } from "./useWebLLM";
 import {
   Wind, Droplets, AlertTriangle,
   Wrench, Navigation, User, Home,
@@ -281,30 +282,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
   const prefillSent = useRef(false);
-  const [llmStatus, setLlmStatus] = useState("idle");
-  const [progress, setProgress] = useState(0);
-  const [progressText, setProgressText] = useState("");
-  const llmRef = useRef(null);
-
-  async function loadLLM() {
-    if (llmRef.current || llmStatus === "loading") return;
-    setLlmStatus("loading");
-    try {
-      const { useWebLLM } = await import("./useWebLLM");
-      const instance = useWebLLM();
-      await instance.load();
-      llmRef.current = instance;
-      setLlmStatus("ready");
-    } catch (err) {
-      console.error("WebLLM load error:", err);
-      setLlmStatus("error");
-    }
-  }
-
-  async function generateLLM(messages, rigProfile, firstTimeBuyer) {
-    if (!llmRef.current) throw new Error("Model not loaded");
-    return await llmRef.current.generate(messages, rigProfile, firstTimeBuyer);
-  }
+  const { status: llmStatus, progress, progressText, load: loadLLM, generate: generateLLM } = useWebLLM();
 
   useEffect(() => {
     if (prefillMessage && !prefillSent.current) {
