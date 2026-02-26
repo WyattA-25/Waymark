@@ -281,7 +281,30 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
   const prefillSent = useRef(false);
-  const inputRef = useRef(null);
+  const [llmStatus, setLlmStatus] = useState("idle");
+  const [progress, setProgress] = useState(0);
+  const [progressText, setProgressText] = useState("");
+  const llmRef = useRef(null);
+
+  async function loadLLM() {
+    if (llmRef.current || llmStatus === "loading") return;
+    setLlmStatus("loading");
+    try {
+      const { useWebLLM } = await import("./useWebLLM");
+      const instance = useWebLLM();
+      await instance.load();
+      llmRef.current = instance;
+      setLlmStatus("ready");
+    } catch (err) {
+      console.error("WebLLM load error:", err);
+      setLlmStatus("error");
+    }
+  }
+
+  async function generateLLM(messages, rigProfile, firstTimeBuyer) {
+    if (!llmRef.current) throw new Error("Model not loaded");
+    return await llmRef.current.generate(messages, rigProfile, firstTimeBuyer);
+  }
 
   useEffect(() => {
     if (prefillMessage && !prefillSent.current) {
@@ -300,16 +323,35 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
     setMessages(newMessages);
     setInput("");
     setTyping(true);
+
+    // Try Gemini first
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: newMessages, rigProfile, firstTimeBuyer }),
+        signal: AbortSignal.timeout(8000), // 8 second timeout
       });
+      if (!res.ok) throw new Error("Gemini failed");
       const data = await res.json();
-      setMessages(m => [...m, { role: "ai", text: data.text || "Something went wrong, please try again." }]);
+      if (data.error) throw new Error(data.error);
+      setMessages(m => [...m, { role: "ai", text: data.text, source: "gemini" }]);
+      setTyping(false);
+      return;
     } catch (err) {
-      setMessages(m => [...m, { role: "ai", text: "Connection error — please try again." }]);
+      console.warn("Gemini unavailable, falling back to offline AI:", err.message);
+    }
+
+    // Fall back to WebLLM
+    try {
+      if (llmStatus !== "ready") {
+        setMessages(m => [...m, { role: "ai", text: "⚡ You're offline — loading emergency AI model for the first time. This may take a few minutes on first use. Please wait...", source: "system" }]);
+        await loadLLM();
+      }
+      const text = await generateLLM(newMessages, rigProfile, firstTimeBuyer);
+      setMessages(m => [...m, { role: "ai", text, source: "offline" }]);
+    } catch (err) {
+      setMessages(m => [...m, { role: "ai", text: "Unable to connect to AI — check your internet connection or try again.", source: "system" }]);
     } finally {
       setTyping(false);
     }
@@ -332,8 +374,8 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <style>{`@keyframes bounce { 0%,80%,100%{transform:scale(1)} 40%{transform:scale(1.5)} }`}</style>
 
-      {/* Rig badge */}
-      <div style={{ padding: "12px 16px 0", flexShrink: 0 }}>
+      {/* Rig badge + offline status */}
+      <div style={{ padding: "12px 16px 0", flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: "7px 11px", display: "flex", alignItems: "center", gap: 8 }}>
           <Car size={13} color={C.accent} />
           <span style={{ fontSize: 11, color: C.accent, fontWeight: 600 }}>
@@ -344,6 +386,36 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
             {firstTimeBuyer ? "Consultant" : "Co-Pilot"}
           </span>
         </div>
+
+        {/* Offline AI loader */}
+        {llmStatus === "loading" && (
+          <div style={{ background: C.blueSoft, border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "8px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.blue }}>⚡ Loading Offline AI — {progress}%</span>
+              <span style={{ fontSize: 10, color: C.muted }}>First time only</span>
+            </div>
+            <div style={{ background: C.surface, borderRadius: 4, height: 4, overflow: "hidden" }}>
+              <div style={{ width: `${progress}%`, height: "100%", background: C.blue, borderRadius: 4, transition: "width 0.3s" }} />
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 4 }}>{progressText}</div>
+          </div>
+        )}
+
+        {llmStatus === "ready" && (
+          <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.green, display: "inline-block" }} />
+            <span style={{ fontSize: 11, color: C.muted }}>Offline AI ready — works without internet</span>
+          </div>
+        )}
+
+        {/* Preload button — shown when idle */}
+        {llmStatus === "idle" && (
+          <button onClick={loadLLM}
+            style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
+            <span style={{ fontSize: 11, color: C.muted }}>📦 Download offline AI for emergency use</span>
+            <span style={{ marginLeft: "auto", fontSize: 10, color: C.blue, fontWeight: 600 }}>~2GB · wifi recommended</span>
+          </button>
+        )}
       </div>
 
       {/* Empty state */}
@@ -378,12 +450,15 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
           {messages.map((msg, i) => (
             <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 8 }}>
               {msg.role === "ai" && (
-                <div style={{ width: 26, height: 26, borderRadius: 8, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
+                <div style={{ width: 26, height: 26, borderRadius: 8, background: msg.source === "offline" ? `linear-gradient(135deg, ${C.blue}, #0050CC)` : `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginBottom: 2 }}>
                   <Bot size={13} color="#fff" />
                 </div>
               )}
               <div style={{ maxWidth: "82%", padding: "10px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? C.accent : C.surfaceAlt, color: msg.role === "user" ? "#1A0800" : C.text, fontSize: 13, lineHeight: 1.6, fontWeight: msg.role === "user" ? 600 : 400 }}>
                 {renderMessage(msg.text)}
+                {msg.source === "offline" && (
+                  <div style={{ fontSize: 9, color: C.blue, marginTop: 6, fontWeight: 600 }}>⚡ OFFLINE AI</div>
+                )}
               </div>
             </div>
           ))}
@@ -401,7 +476,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
         </div>
       )}
 
-      {/* Quick replies (when messages exist) */}
+      {/* Quick replies */}
       {!isEmpty && (
         <div style={{ padding: "8px 16px 0", display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none", flexShrink: 0 }}>
           {QUICK_REPLIES.map((q, i) => (
@@ -419,11 +494,10 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
       {/* Input */}
       <div style={{ padding: "10px 16px 16px", display: "flex", gap: 8, flexShrink: 0 }}>
         <input
-          ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && sendMsg(input)}
-          placeholder="Ask Waymark anything about your rig..."
+          placeholder={llmStatus === "ready" ? "Ask anything — works offline..." : "Ask Waymark anything about your rig..."}
           style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
         />
         <button onClick={() => sendMsg(input)}

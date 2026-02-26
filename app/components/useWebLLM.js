@@ -1,0 +1,63 @@
+import { useState, useEffect, useRef } from "react";
+
+const MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+
+export function useWebLLM() {
+  const [status, setStatus] = useState("idle"); // idle | loading | ready | error
+  const [progress, setProgress] = useState(0);
+  const [progressText, setProgressText] = useState("");
+  const engineRef = useRef(null);
+
+  async function load() {
+    if (engineRef.current || status === "loading") return;
+    setStatus("loading");
+    try {
+      const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
+      const engine = await CreateMLCEngine(MODEL_ID, {
+        initProgressCallback: (p) => {
+          setProgress(Math.round(p.progress * 100));
+          setProgressText(p.text || "Loading model...");
+        },
+      });
+      engineRef.current = engine;
+      setStatus("ready");
+    } catch (err) {
+      console.error("WebLLM load error:", err);
+      setStatus("error");
+    }
+  }
+
+  async function generate(messages, rigProfile, firstTimeBuyer) {
+    if (!engineRef.current) throw new Error("Model not loaded");
+
+    const systemPrompt = `You are Waymark, an offline RV emergency assistant. Be extremely brief and direct.
+
+RIG: ${rigProfile.year} ${rigProfile.make} ${rigProfile.model} ${rigProfile.floorPlan || ""} — ${rigProfile.length} long, ${rigProfile.height} tall
+MODE: ${firstTimeBuyer ? "First-time buyer" : "Experienced RVer"}
+
+RULES:
+- You are running OFFLINE on the user's device
+- Max 100 words per response
+- Prioritize safety and practical fixes
+- No fluff, get straight to the answer
+- Perfect for emergencies: fires, leaks, mechanical issues, first aid basics, campsite safety`;
+
+    const formattedMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.role === "ai" ? "assistant" : "user",
+        content: m.text,
+      })),
+    ];
+
+    const reply = await engineRef.current.chat.completions.create({
+      messages: formattedMessages,
+      temperature: 0.3,
+      max_tokens: 300,
+    });
+
+    return reply.choices[0].message.content;
+  }
+
+  return { status, progress, progressText, load, generate };
+}
