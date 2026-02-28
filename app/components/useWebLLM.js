@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-const MODEL_ID = "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+const MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 
 export function useWebLLM() {
   const [status, setStatus] = useState("idle"); // idle | loading | ready | error
@@ -38,6 +38,8 @@ MODE: ${firstTimeBuyer ? "First-time buyer" : "Experienced RVer"}
 RULES:
 - You are running OFFLINE on the user's device
 - Max 100 words per response
+- Never use code blocks, backticks, or markdown formatting
+- Plain text and bullet points only
 - Prioritize safety and practical fixes
 - No fluff, get straight to the answer
 - Perfect for emergencies: fires, leaks, mechanical issues, first aid basics, campsite safety`;

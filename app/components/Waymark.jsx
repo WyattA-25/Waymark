@@ -336,9 +336,11 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
   }
 
   function renderMessage(text) {
+    text = text.replace(/```[\w]*\n?/g, "").replace(/```/g, "");
     return text.split("\n").map((line, j) => {
       if (line.startsWith("### ")) return <div key={j} style={{ fontWeight: 800, fontSize: 13, color: C.accent, marginTop: 8, marginBottom: 2 }}>{line.replace("### ", "")}</div>;
       if (line.startsWith("## ")) return <div key={j} style={{ fontWeight: 800, fontSize: 14, color: C.text, marginTop: 8, marginBottom: 2 }}>{line.replace("## ", "")}</div>;
+      if (line.startsWith("# ")) return <div key={j} style={{ fontWeight: 800, fontSize: 15, color: C.text, marginTop: 8, marginBottom: 2 }}>{line.replace("# ", "")}</div>;
       if (line.startsWith("* ") || line.startsWith("- ")) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{"• "}{line.replace(/^\*\s|^-\s/, "").split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
       if (/^\d+\.\s/.test(line)) return <div key={j} style={{ paddingLeft: 12, marginTop: 2 }}>{line.split(/\*\*(.*?)\*\*/g).map((p, k) => k % 2 === 1 ? <strong key={k}>{p}</strong> : p)}</div>;
       if (line.trim() === "") return <div key={j} style={{ height: 6 }} />;
