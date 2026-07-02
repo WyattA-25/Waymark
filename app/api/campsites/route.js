@@ -1,15 +1,33 @@
+import { rateLimit } from "../../../lib/ratelimit";
+import { geocode } from "../../../lib/geo";
+
 export async function GET(req) {
+  const limited = rateLimit(req, "campsites");
+  if (limited) return limited;
+
   try {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("query") || "camping";
-    const state = searchParams.get("state") || "PA";
-    const rigLength = parseInt(searchParams.get("rigLength") || "30");
+    const state = searchParams.get("state"); // optional two-letter filter
+    const near = searchParams.get("near"); // optional place name for radius search
+    const limit = Math.min(parseInt(searchParams.get("limit") || "6"), 20);
 
     // Search Recreation.gov for campgrounds
     const url = new URL("https://ridb.recreation.gov/api/v1/facilities");
     url.searchParams.set("activity", "CAMPING");
-    url.searchParams.set("query", query);
-    url.searchParams.set("state", state);
+    if (near) {
+      // Radius search around a geocoded place beats fuzzy text matching
+      const place = await geocode(near);
+      if (!place) {
+        return Response.json({ error: `Could not find "${near}".` }, { status: 404 });
+      }
+      url.searchParams.set("latitude", place.lat);
+      url.searchParams.set("longitude", place.lon);
+      url.searchParams.set("radius", "100");
+    } else {
+      url.searchParams.set("query", query);
+      if (state) url.searchParams.set("state", state);
+    }
     url.searchParams.set("limit", "20");
     url.searchParams.set("offset", "0");
 
@@ -17,7 +35,8 @@ export async function GET(req) {
       headers: {
         "apikey": process.env.RECREATION_GOV_API_KEY,
         "Accept": "application/json",
-      }
+      },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) {
@@ -29,13 +48,10 @@ export async function GET(req) {
       );
     }
 
-    const text = await res.text();
-    console.log("Raw response preview:", text.slice(0, 200));
-    const data = JSON.parse(text);
+    const data = await res.json();
 
-    // Filter and format results
     const campgrounds = (data.RECDATA || [])
-      .slice(0, 6)
+      .slice(0, limit)
       .map(c => ({
         id: c.FacilityID,
         name: c.FacilityName,

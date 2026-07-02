@@ -1,6 +1,0 @@
-STEP 2 REMINDER:
-- Go to console.anthropic.com and get API key
-- Add it to .env.local as ANTHROPIC_API_KEY=sk-ant-xxx
-- Create app/api/chat/route.js (ask Claude for the code)
-- Update sendMsg function in Waymark.jsx (ask Claude for the code)
-- Test with "My interior lights are flickering"

@@ -109,7 +109,7 @@ export default function CampsiteSearch({ rigProfile, openChat }) {
       {/* Rig filter notice */}
       {rigProfile && (
         <div style={{ fontSize: 11, color: C.muted, marginBottom: 16, padding: "8px 12px", background: C.surfaceAlt, borderRadius: 8, border: `1px solid ${C.border}` }}>
-          🔍 Filtering for rigs up to <strong style={{ color: C.accent }}>{rigProfile.length}</strong> — sites too short for your trailer are excluded
+          Filtering for rigs up to <strong style={{ color: C.accent }}>{rigProfile.length}</strong>: sites too short for your trailer are excluded
         </div>
       )}
 

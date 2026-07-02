@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Navigation } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 const C = {
@@ -52,7 +53,7 @@ export default function Auth({ onLogin }) {
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: `linear-gradient(135deg, ${C.accent}, #C04A00)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <span style={{ fontSize: 24 }}>🧭</span>
+            <Navigation size={24} color="#fff" strokeWidth={2.5} />
           </div>
           <div style={{ fontSize: 28, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>waymark</div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>Your RV Co-Pilot</div>

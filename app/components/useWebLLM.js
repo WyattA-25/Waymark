@@ -3,13 +3,20 @@ import { useState, useEffect, useRef } from "react";
 const MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 
 export function useWebLLM() {
-  const [status, setStatus] = useState("idle"); // idle | loading | ready | error
+  const [status, setStatus] = useState("idle"); // idle | loading | ready | error | unsupported
   const [progress, setProgress] = useState(0);
   const [progressText, setProgressText] = useState("");
   const engineRef = useRef(null);
 
+  // WebLLM requires WebGPU (Chrome and Edge; Safari and Firefox are partial).
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && !navigator.gpu) {
+      setStatus("unsupported");
+    }
+  }, []);
+
   async function load() {
-    if (engineRef.current || status === "loading") return;
+    if (engineRef.current || status === "loading" || status === "unsupported") return;
     setStatus("loading");
     try {
       const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
@@ -32,7 +39,7 @@ export function useWebLLM() {
 
     const systemPrompt = `You are Waymark, an offline RV emergency assistant. Be extremely brief and direct.
 
-RIG: ${rigProfile.year} ${rigProfile.make} ${rigProfile.model} ${rigProfile.floorPlan || ""} — ${rigProfile.length} long, ${rigProfile.height} tall
+RIG: ${rigProfile.year} ${rigProfile.make} ${rigProfile.model} ${rigProfile.floorPlan || ""} (${rigProfile.length} long, ${rigProfile.height} tall)
 MODE: ${firstTimeBuyer ? "First-time buyer" : "Experienced RVer"}
 
 RULES:

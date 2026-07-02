@@ -8,7 +8,7 @@ import {
   Wind, Droplets, AlertTriangle,
   Wrench, Navigation, User, Home,
   Star, Bell, X, Send, MessageSquare,
-  Tent, Car,
+  Tent, Car, Zap, Cloud, Download,
   ToggleLeft, ToggleRight, Bot, Compass, Sun,
   ArrowLeft, ChevronRight
 } from "lucide-react";
@@ -99,31 +99,69 @@ function SectionLabel({ children, action, onAction }) {
 }
 
 // ─── FULL FORECAST PAGE ────────────────────────────────────────────────
+function getSavedTrip() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("waymark_trip"));
+    if (saved?.from && saved?.to) return saved;
+  } catch {}
+  return { from: "Pittsburgh", to: "Yellowstone National Park" };
+}
+
 function FullForecastPage({ onBack }) {
-  const days = [
-    { day: "Today", city: "Pittsburgh, PA", temp: 62, low: 48, wind: 12, precip: "10%", status: "Clear", alert: false },
-    { day: "Day 2", city: "Columbus, OH", temp: 58, low: 44, wind: 19, precip: "25%", status: "Partly Cloudy", alert: false },
-    { day: "Day 3", city: "St. Louis, MO", temp: 71, low: 55, wind: 8, precip: "5%", status: "Clear & Warm", alert: false },
-    { day: "Day 4", city: "Kansas City, MO", temp: 67, low: 51, wind: 22, precip: "35%", status: "Scattered Showers", alert: false },
-    { day: "Day 5", city: "Casper, WY", temp: 44, low: 31, wind: 52, precip: "15%", status: "HIGH WIND WARNING", alert: true },
-    { day: "Day 6", city: "Yellowstone, WY", temp: 38, low: 28, wind: 34, precip: "20%", status: "Gusts Possible", alert: false },
-  ];
+  const [trip] = useState(getSavedTrip);
+  const [days, setDays] = useState([]);
+  const [alert, setAlert] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadForecast() {
+      try {
+        const res = await fetch(`/api/forecast?from=${encodeURIComponent(trip.from)}&to=${encodeURIComponent(trip.to)}`);
+        const data = await res.json();
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setDays(data.days || []);
+          setAlert(data.hasAlert ? { message: data.alertMessage, day: data.alertDay } : null);
+        }
+      } catch {
+        setError("Forecast is unavailable right now. Check your connection.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadForecast();
+  }, [trip]);
+
   return (
     <div style={{ padding: "0 16px 100px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0 16px" }}>
         <button onClick={onBack} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}><ArrowLeft size={16} /></button>
         <div>
           <div style={{ fontWeight: 800, fontSize: 18, color: C.text, letterSpacing: "-0.02em" }}>Full Route Forecast</div>
-          <div style={{ fontSize: 12, color: C.textSub }}>PA → Yellowstone · 6-Day Outlook</div>
+          <div style={{ fontSize: 12, color: C.textSub }}>{trip.from} → {trip.to} · {days.length || 6}-Day Outlook</div>
         </div>
       </div>
-      <div style={{ background: `linear-gradient(90deg, ${C.redSoft}, #3D1A19)`, border: `1px solid ${C.red}44`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-        <AlertTriangle size={18} color={C.red} />
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.red }}>HIGH WIND WARNING — Day 5</div>
-          <div style={{ fontSize: 11, color: C.red, opacity: 0.8, marginTop: 2 }}>52mph gusts near Casper, WY. Consider delaying or rerouting.</div>
+      {alert && (
+        <div style={{ background: `linear-gradient(90deg, ${C.redSoft}, #3D1A19)`, border: `1px solid ${C.red}44`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <AlertTriangle size={18} color={C.red} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.red }}>HIGH WIND WARNING: {alert.day}</div>
+            <div style={{ fontSize: 11, color: C.red, opacity: 0.8, marginTop: 2 }}>{alert.message}</div>
+          </div>
         </div>
-      </div>
+      )}
+      {error && (
+        <div style={{ background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "12px 14px", marginBottom: 16, fontSize: 12, color: C.red }}>
+          {error}
+        </div>
+      )}
+      {loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} style={{ height: 92, background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, opacity: 0.5 }} />)}
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {days.map((d, i) => (
           <Card key={i} style={{ borderColor: d.alert ? `${C.red}55` : C.border, background: d.alert ? `${C.redSoft}66` : C.surface }}>
@@ -282,6 +320,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
   const prefillSent = useRef(false);
+  const [mode, setMode] = useState("auto"); // auto | cloud | offline
   const { status: llmStatus, progress, progressText, load: loadLLM, generate: generateLLM } = useWebLLM();
 
   useEffect(() => {
@@ -302,34 +341,50 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
     setInput("");
     setTyping(true);
 
-    // Try Gemini first
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, rigProfile, firstTimeBuyer }),
-        signal: AbortSignal.timeout(8000), // 8 second timeout
-      });
-      if (!res.ok) throw new Error("Gemini failed");
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setMessages(m => [...m, { role: "ai", text: data.text, source: "gemini" }]);
-      setTyping(false);
-      return;
-    } catch (err) {
-      console.warn("Gemini unavailable, falling back to offline AI:", err.message);
+    // Cloud (Gemini) first, unless the user forced offline mode
+    if (mode !== "offline") {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? { "Authorization": `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({ messages: newMessages, rigProfile, firstTimeBuyer }),
+          signal: AbortSignal.timeout(8000), // 8 second timeout
+        });
+        if (!res.ok) throw new Error("Gemini failed");
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        setMessages(m => [...m, { role: "ai", text: data.text, source: "gemini" }]);
+        setTyping(false);
+        return;
+      } catch (err) {
+        console.warn("Gemini unavailable:", err.message);
+        if (mode === "cloud") {
+          setMessages(m => [...m, { role: "ai", text: "Cloud AI is unreachable right now. Check your connection, or switch to Offline mode.", source: "system" }]);
+          setTyping(false);
+          return;
+        }
+      }
     }
 
-    // Fall back to WebLLM
+    // Offline (WebLLM): forced by the toggle, or automatic fallback when cloud fails
+    if (llmStatus === "unsupported") {
+      setMessages(m => [...m, { role: "ai", text: "Offline AI needs WebGPU, which this browser does not support. Use Chrome or Edge for offline mode, or switch back to Cloud.", source: "system" }]);
+      setTyping(false);
+      return;
+    }
     try {
       if (llmStatus !== "ready") {
-        setMessages(m => [...m, { role: "ai", text: "⚡ You're offline — loading emergency AI model for the first time. This may take a few minutes on first use. Please wait...", source: "system" }]);
+        setMessages(m => [...m, { role: "ai", text: "Loading the offline AI model. The first load downloads about 700MB and can take a few minutes. After that it is cached and starts instantly.", source: "system" }]);
         await loadLLM();
       }
       const text = await generateLLM(newMessages, rigProfile, firstTimeBuyer);
       setMessages(m => [...m, { role: "ai", text, source: "offline" }]);
     } catch (err) {
-      setMessages(m => [...m, { role: "ai", text: "Unable to connect to AI — check your internet connection or try again.", source: "system" }]);
+      setMessages(m => [...m, { role: "ai", text: "Unable to reach the AI. Check your internet connection or try again.", source: "system" }]);
     } finally {
       setTyping(false);
     }
@@ -367,11 +422,33 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
           </span>
         </div>
 
+        {/* Engine mode toggle */}
+        <div style={{ display: "flex", gap: 4, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: 3 }}>
+          {[
+            { key: "auto", label: "Auto" },
+            { key: "cloud", label: "Cloud", icon: <Cloud size={11} /> },
+            { key: "offline", label: "Offline", icon: <Zap size={11} /> },
+          ].map(opt => {
+            const active = mode === opt.key;
+            const disabled = opt.key === "offline" && llmStatus === "unsupported";
+            return (
+              <button key={opt.key} onClick={() => !disabled && setMode(opt.key)} disabled={disabled}
+                title={disabled ? "Offline AI needs WebGPU (Chrome or Edge)" : undefined}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "5px 0", borderRadius: 6, border: "none", cursor: disabled ? "not-allowed" : "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 700, background: active ? C.accent : "transparent", color: active ? "#1A0800" : disabled ? C.border : C.textSub, opacity: disabled ? 0.6 : 1 }}>
+                {opt.icon}{opt.label}
+                {opt.key === "offline" && llmStatus === "ready" && (
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: active ? "#1A0800" : C.green, display: "inline-block" }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Offline AI loader */}
         {llmStatus === "loading" && (
           <div style={{ background: C.blueSoft, border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "8px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.blue }}>⚡ Loading Offline AI — {progress}%</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: C.blue }}><Zap size={11} /> Loading Offline AI: {progress}%</span>
               <span style={{ fontSize: 10, color: C.muted }}>First time only</span>
             </div>
             <div style={{ background: C.surface, borderRadius: 4, height: 4, overflow: "hidden" }}>
@@ -384,16 +461,24 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
         {llmStatus === "ready" && (
           <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.green, display: "inline-block" }} />
-            <span style={{ fontSize: 11, color: C.muted }}>Offline AI ready — works without internet</span>
+            <span style={{ fontSize: 11, color: C.muted }}>Offline AI ready: answers even with no internet</span>
           </div>
         )}
 
-        {/* Preload button — shown when idle */}
+        {llmStatus === "unsupported" && (
+          <div style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertTriangle size={11} color={C.muted} />
+            <span style={{ fontSize: 11, color: C.muted }}>Offline AI unavailable: this browser has no WebGPU. Use Chrome or Edge.</span>
+          </div>
+        )}
+
+        {/* Preload button, shown when idle */}
         {llmStatus === "idle" && (
           <button onClick={loadLLM}
             style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
-            <span style={{ fontSize: 11, color: C.muted }}>📦 Download offline AI for emergency use</span>
-            <span style={{ marginLeft: "auto", fontSize: 10, color: C.blue, fontWeight: 600 }}>~2GB · wifi recommended</span>
+            <Download size={12} color={C.muted} />
+            <span style={{ fontSize: 11, color: C.muted }}>Download offline AI for emergency use</span>
+            <span style={{ marginLeft: "auto", fontSize: 10, color: C.blue, fontWeight: 600 }}>~700MB · wifi recommended</span>
           </button>
         )}
       </div>
@@ -437,7 +522,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
               <div style={{ maxWidth: "82%", padding: "10px 13px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? C.accent : C.surfaceAlt, color: msg.role === "user" ? "#1A0800" : C.text, fontSize: 13, lineHeight: 1.6, fontWeight: msg.role === "user" ? 600 : 400 }}>
                 {renderMessage(msg.text)}
                 {msg.source === "offline" && (
-                  <div style={{ fontSize: 9, color: C.blue, marginTop: 6, fontWeight: 600 }}>⚡ OFFLINE AI</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 9, color: C.blue, marginTop: 6, fontWeight: 600 }}><Zap size={9} /> OFFLINE AI</div>
                 )}
               </div>
             </div>
@@ -477,7 +562,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && sendMsg(input)}
-          placeholder={llmStatus === "ready" ? "Ask anything — works offline..." : "Ask Waymark anything about your rig..."}
+          placeholder={llmStatus === "ready" ? "Ask anything, even offline..." : "Ask Waymark anything about your rig..."}
           style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
         />
         <button onClick={() => sendMsg(input)}
@@ -538,7 +623,7 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
         </div>
         {firstTimeBuyer && (
           <div style={{ marginTop: 10, padding: "8px 10px", background: "#00000033", borderRadius: 8, fontSize: 12, color: C.accent }}>
-            🎓 Consultant Mode: AI explains terminology and gives beginner-friendly recommendations.
+            Consultant Mode: AI explains terminology and gives beginner-friendly recommendations.
           </div>
         )}
       </Card>
@@ -587,7 +672,7 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
           </div>
           {rigProfile.make && rigProfile.model && (
             <div style={{ background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 20 }}>🚐</span>
+              <Car size={20} color={C.accent} />
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.accent }}>
                   {rigProfile.year} {rigProfile.make} {rigProfile.model} {rigProfile.floorPlan}
@@ -610,7 +695,7 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
               <button key={s}
                 onClick={() => setRigProfile(p => ({ ...p, subs: active ? p.subs.filter(x => x !== s) : [...p.subs, s] }))}
                 style={{ padding: "9px 16px", borderRadius: 22, border: `1px solid ${active ? C.accent : C.border}`, background: active ? C.accentSoft : "transparent", color: active ? C.accent : C.textSub, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
-                {active ? "✓ " : ""}{s}
+                {s}
               </button>
             );
           })}
@@ -630,8 +715,8 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
 // ─── DASHBOARD ─────────────────────────────────────────────────────────
 function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
   const [vibeItems, setVibeItems] = useState([
-    { title: "Loading your feed...", channel: "", thumb: "🏕️", tag: "Tips", url: null },
-    { title: "Loading your feed...", channel: "", thumb: "🔧", tag: "DIY", url: null },
+    { title: "Loading your feed...", channel: "", tag: "Tips", url: null },
+    { title: "Loading your feed...", channel: "", tag: "DIY", url: null },
   ]);
   const [vibeLoading, setVibeLoading] = useState(false);
 
@@ -659,30 +744,42 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
     loadVideos();
   }, [rigProfile.make, rigProfile.model]);
 
-  const [weatherPoints, setWeatherPoints] = useState([
-    { city: "Pittsburgh", temp: "--", wind: "--", status: "Loading", alert: false },
-    { city: "Columbus", temp: "--", wind: "--", status: "Loading", alert: false },
-    { city: "St. Louis", temp: "--", wind: "--", status: "Loading", alert: false },
-    { city: "Casper", temp: "--", wind: "--", status: "Loading", alert: false },
-    { city: "Yellowstone", temp: "--", wind: "--", status: "Loading", alert: false },
-  ]);
+  // Trip route for weather, persisted per device
+  const [trip, setTrip] = useState(getSavedTrip);
+  const [tripDraft, setTripDraft] = useState(null); // null = not editing
+  const [weatherPoints, setWeatherPoints] = useState(
+    Array.from({ length: 5 }, () => ({ city: "...", temp: "--", wind: "--", status: "Loading", alert: false }))
+  );
   const [weatherAlert, setWeatherAlert] = useState({ hasAlert: false, message: "" });
+  const [weatherError, setWeatherError] = useState("");
 
   useEffect(() => {
     async function loadWeather() {
+      setWeatherError("");
       try {
-        const res = await fetch("/api/weather");
+        const res = await fetch(`/api/weather?from=${encodeURIComponent(trip.from)}&to=${encodeURIComponent(trip.to)}`);
         const data = await res.json();
-        if (data.weatherPoints) {
+        if (data.error) {
+          setWeatherError(data.error);
+        } else if (data.weatherPoints) {
           setWeatherPoints(data.weatherPoints);
           setWeatherAlert({ hasAlert: data.hasAlert, message: data.alertMessage || "" });
         }
       } catch (err) {
         console.error("Failed to load weather:", err);
+        setWeatherError("Weather is unavailable right now.");
       }
     }
     loadWeather();
-  }, []);
+  }, [trip]);
+
+  function saveTrip() {
+    if (!tripDraft?.from?.trim() || !tripDraft?.to?.trim()) return;
+    const next = { from: tripDraft.from.trim(), to: tripDraft.to.trim() };
+    setTrip(next);
+    setTripDraft(null);
+    try { localStorage.setItem("waymark_trip", JSON.stringify(next)); } catch {}
+  }
 
   const actions = [
     { label: "Fix Issue", icon: <Wrench size={16} />, color: C.accent, prompt: "I need help diagnosing an issue with my RV" },
@@ -693,8 +790,10 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
   return (
     <div style={{ padding: "0 20px 100px", display: "flex", flexDirection: "column", gap: 28 }}>
       <div style={{ paddingTop: 28 }}>
-        <div style={{ fontSize: 24, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>Good morning, Alex</div>
-        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{rigProfile.year} {rigProfile.make} · PA → Yellowstone</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>
+          {(() => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; })()}
+        </div>
+        <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{rigProfile.year} {rigProfile.make} · {trip.from} → {trip.to}</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
@@ -715,8 +814,30 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase" }}>Route Weather</span>
-          <button onClick={openForecast} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Full Forecast →</button>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button onClick={() => setTripDraft(tripDraft ? null : { ...trip })} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              {tripDraft ? "Cancel" : "Edit Trip"}
+            </button>
+            <button onClick={openForecast} style={{ background: "none", border: "none", color: C.blue, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Full Forecast →</button>
+          </div>
         </div>
+        {tripDraft && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input value={tripDraft.from} onChange={e => setTripDraft(d => ({ ...d, from: e.target.value }))}
+              onKeyDown={e => e.key === "Enter" && saveTrip()} placeholder="From (city)"
+              style={{ flex: 1, minWidth: 0, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+            <input value={tripDraft.to} onChange={e => setTripDraft(d => ({ ...d, to: e.target.value }))}
+              onKeyDown={e => e.key === "Enter" && saveTrip()} placeholder="To (city or park name)"
+              style={{ flex: 1, minWidth: 0, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+            <button onClick={saveTrip}
+              style={{ background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", color: "#1A0800", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
+          </div>
+        )}
+        {weatherError && (
+          <div style={{ background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 10, padding: "9px 12px", marginBottom: 10, fontSize: 12, color: C.red }}>
+            {weatherError}
+          </div>
+        )}
         {weatherAlert.hasAlert && (
           <div onClick={() => goToCopilot(`reroute around weather warning: ${weatherAlert.message}`)}
             style={{ display: "flex", alignItems: "center", gap: 10, background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "11px 14px", marginBottom: 10, cursor: "pointer" }}>
@@ -756,7 +877,7 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
               {v.isReal ? (
                 <img src={v.thumb} alt={v.title} style={{ width: 80, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 44, height: 44, borderRadius: 10, background: C.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0, border: `1px solid ${C.border}` }}>{v.thumb}</div>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: C.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid ${C.border}` }}><Compass size={18} color={C.muted} /></div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", marginBottom: 4 }}>{v.title}</div>
@@ -774,29 +895,58 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
 }
 
 // ─── EXPLORE PAGE ──────────────────────────────────────────────────────
-function ExplorePage({ goToCopilot }) {
-  const spots = [
-    { name: "Limekiln Lake, NY", tag: "Kayak Base", rating: 4.8, dist: "210mi", emoji: "🚣", prompt: "Tell me about camping at Limekiln Lake NY for kayaking with my trailer" },
-    { name: "Shenandoah NP, VA", tag: "Scenic Drive", rating: 4.9, dist: "180mi", emoji: "🏔️", prompt: "Plan a trip to Shenandoah National Park for my rig, including rig-safe roads and campsite recommendations" },
-    { name: "Delaware Water Gap", tag: "Hiking", rating: 4.6, dist: "95mi", emoji: "🌊", prompt: "Find me a great campsite at Delaware Water Gap and tell me what to do there" },
-    { name: "Allegany SP, NY", tag: "Full Hookup", rating: 4.5, dist: "150mi", emoji: "🌲", prompt: "Tell me about Allegany State Park camping for my trailer with activities" },
-    { name: "Assateague Island", tag: "Beach/Ponies", rating: 4.9, dist: "230mi", emoji: "🏖️", prompt: "Tell me about camping at Assateague Island with my trailer, wild ponies, and beach activities" },
-    { name: "Promised Land SP", tag: "Poconos", rating: 4.7, dist: "85mi", emoji: "⛺", prompt: "Tell me about Promised Land State Park camping near the Poconos for a weekend trip" },
-  ];
+function ExplorePage({ goToCopilot, rigProfile }) {
+  const [trip] = useState(getSavedTrip);
+  const [spots, setSpots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadSpots() {
+      try {
+        const res = await fetch(`/api/campsites?near=${encodeURIComponent(trip.to)}&limit=8`);
+        const data = await res.json();
+        if (data.error) setError("Could not load campgrounds right now.");
+        else setSpots(data.campgrounds || []);
+      } catch {
+        setError("Could not load campgrounds. Check your connection.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSpots();
+  }, [trip]);
+
   return (
     <div style={{ padding: "20px 16px 100px" }}>
       <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: "-0.02em", marginBottom: 4 }}>Explore <span style={{ color: C.blue }}>↗</span></div>
-      <div style={{ fontSize: 13, color: C.textSub, marginBottom: 16 }}>Top picks near State College, PA · <span style={{ color: C.blue }}>Tap any to get AI trip info</span></div>
+      <div style={{ fontSize: 13, color: C.textSub, marginBottom: 16 }}>Campgrounds near {trip.to} · <span style={{ color: C.blue }}>Tap any to get AI trip info</span></div>
+      {error && (
+        <div style={{ background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "12px 14px", marginBottom: 16, fontSize: 12, color: C.red }}>{error}</div>
+      )}
+      {loading && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} style={{ height: 140, background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, opacity: 0.5 }} />)}
+        </div>
+      )}
+      {!loading && !error && spots.length === 0 && (
+        <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted, fontSize: 13 }}>
+          No campgrounds found near {trip.to}. Set a different trip destination on the Home tab, or search the Sites tab directly.
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {spots.map((s, i) => (
-          <Card key={i} onClick={() => goToCopilot(s.prompt)} style={{ padding: 14 }}>
-            <div style={{ fontSize: 26, marginBottom: 8 }}>{s.emoji}</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 5 }}>{s.name}</div>
-            <Badge color={C.blue} bg={C.blueSoft}>{s.tag}</Badge>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: C.muted }}><Star size={10} color={C.blue} fill={C.blue} />{s.rating}</span>
-              <span style={{ fontSize: 11, color: C.muted }}>{s.dist}</span>
+          <Card key={s.id || i} onClick={() => goToCopilot(`Tell me about ${s.name} campground for my ${rigProfile?.year} ${rigProfile?.make} ${rigProfile?.model}. Is it a good fit for my rig, and what is there to do nearby?`)} style={{ padding: 14 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: C.blueSoft, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+              <Tent size={16} color={C.blue} />
             </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 5, lineHeight: 1.3 }}>{s.name}</div>
+            <Badge color={C.blue} bg={C.blueSoft}>{s.state || "US"}</Badge>
+            {s.reservable && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8, fontSize: 11, color: C.green }}>
+                <Star size={10} color={C.green} fill={C.green} />Reservable
+              </div>
+            )}
             <div style={{ marginTop: 8, fontSize: 10, color: C.blue, fontWeight: 600 }}>Tap for AI trip info →</div>
           </Card>
         ))}
@@ -888,7 +1038,7 @@ export default function App({ user }) {
       {tab === "home" && !subPage && <Dashboard goToCopilot={goToCopilot} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} />}
       {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
       {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
-      {tab === "explore" && <ExplorePage goToCopilot={goToCopilot} />}
+      {tab === "explore" && <ExplorePage goToCopilot={goToCopilot} rigProfile={rigProfile} />}
       {tab === "sites" && <CampsiteSearch rigProfile={rigProfile} openChat={goToCopilot} />}
       {tab === "copilot" && (
         <div style={{ height: isMobile ? "calc(100vh - 130px)" : "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>

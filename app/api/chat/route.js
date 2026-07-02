@@ -1,12 +1,23 @@
+import { getUserFromRequest } from "../../../lib/supabaseServer";
+import { rateLimit } from "../../../lib/ratelimit";
+
 export async function POST(req) {
   try {
+    // Chat proxies a paid API key, so require a signed-in user and rate limit per user
+    const user = await getUserFromRequest(req);
+    if (!user) {
+      return Response.json({ error: "Sign in to use cloud chat." }, { status: 401 });
+    }
+    const limited = rateLimit(req, "chat", user.id);
+    if (limited) return limited;
+
     const { messages, rigProfile, firstTimeBuyer } = await req.json();
 
     const systemPrompt = `You are Waymark, an RV co-pilot assistant. Be brief and direct.
 
-RIG: ${rigProfile.year} ${rigProfile.make} ${rigProfile.model} ${rigProfile.floorPlan || ""} — ${rigProfile.length} long, ${rigProfile.height} tall
+RIG: ${rigProfile.year} ${rigProfile.make} ${rigProfile.model} ${rigProfile.floorPlan || ""} (${rigProfile.length} long, ${rigProfile.height} tall)
 MEMBERSHIPS: ${rigProfile.subs?.join(", ") || "none"}
-MODE: ${firstTimeBuyer ? "First-time buyer — explain terms simply" : "Experienced RVer — be technical and direct"}
+MODE: ${firstTimeBuyer ? "First-time buyer: explain terms simply" : "Experienced RVer: be technical and direct"}
 
 RULES:
 - Max 150 words per response unless user asks for more
