@@ -9,6 +9,7 @@ An AI-powered RV co-pilot built with Next.js. Chat runs two ways: Gemini in the 
 ## Features
 - **Waymark AI**: one unified assistant for repairs, routes, and campsites, tuned to your specific rig
 - **Offline mode**: Llama 3.2 runs in-browser (WebLLM + WebGPU) and answers with zero network; a manual Auto / Cloud / Offline toggle shows which engine is active
+- **Installable PWA**: install from the browser (desktop or phone) and the whole app opens with no connection: service-worker cached shell, locally mirrored rig profile, last saved route weather, and the offline assistant; a dashboard prompt suggests downloading the offline AI before a trip
 - **Route Weather**: live conditions at real waypoints along your trip, plus a multi-day driving forecast (Open-Meteo + Nominatim, no API keys)
 - **Campsite Search**: real campgrounds from Recreation.gov, searchable by state or by radius around your destination
 - **Vibe Feed**: RV videos matched to your exact rig, fetched without YouTube API quota limits

@@ -12,7 +12,7 @@ import {
   Star, Bell, X, Send, MessageSquare,
   Tent, Car, Zap, Cloud, Download,
   ToggleLeft, ToggleRight, Bot, Compass, Sun,
-  ArrowLeft, ChevronRight
+  ArrowLeft, ChevronRight, WifiOff
 } from "lucide-react";
 
 const C = {
@@ -43,6 +43,31 @@ function useIsMobile() {
     return () => window.removeEventListener("resize", check);
   }, []);
   return isMobile;
+}
+
+function useOnline() {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return online;
+}
+
+// Small pill shown in the top bars when the device has no connection
+function OfflineBadge() {
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 5, background: C.blueSoft, border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "5px 9px", fontSize: 10, fontWeight: 700, color: C.blue }}>
+      <WifiOff size={11} />
+      Offline
+    </span>
+  );
 }
 
 // ─── SPARKLINE ─────────────────────────────────────────────────────────
@@ -338,14 +363,16 @@ const QUICK_REPLIES = [
 ];
 
 // ─── INLINE CHAT (Co-Pilot Page) ───────────────────────────────────────
-function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce }) {
+function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce, llm }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
   const lastPrefillNonce = useRef(0);
   const [mode, setMode] = useState("auto"); // auto | cloud | offline
-  const { status: llmStatus, progress, progressText, load: loadLLM, generate: generateLLM } = useWebLLM();
+  // The hook lives in App so the dashboard trip-prep prompt shares the
+  // same engine and progress state
+  const { status: llmStatus, progress, progressText, load: loadLLM, generate: generateLLM } = llm;
 
   // The chat stays mounted across tab switches so history survives; a new
   // nonce marks each fresh prefill request rather than a remount.
@@ -770,8 +797,77 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
   );
 }
 
+// ─── TRIP PREP PROMPT ──────────────────────────────────────────────────
+// Nudges the one-time offline AI download before a trip, when it matters.
+// Hidden when unsupported, already downloaded, or dismissed with Later.
+function TripPrepPrompt({ llm }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem("waymark_offline_prompt") === "dismissed"; } catch { return false; }
+  });
+
+  if (!llm || llm.status === "unsupported" || llm.status === "ready") return null;
+  if (dismissed && llm.status === "idle") return null;
+
+  function dismiss() {
+    try { localStorage.setItem("waymark_offline_prompt", "dismissed"); } catch {}
+    setDismissed(true);
+  }
+
+  if (llm.status === "loading") {
+    return (
+      <div style={{ background: C.blueSoft, border: `1px solid ${C.blue}33`, borderRadius: 14, padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: C.blue }}>
+            <Zap size={13} /> Downloading Offline AI: {llm.progress}%
+          </span>
+          <span style={{ fontSize: 10, color: C.muted }}>First time only</span>
+        </div>
+        <div style={{ background: C.surface, borderRadius: 4, height: 5, overflow: "hidden" }}>
+          <div style={{ width: `${llm.progress}%`, height: "100%", background: C.blue, borderRadius: 4, transition: "width 0.3s" }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (llm.status === "error") {
+    return (
+      <div style={{ background: C.redSoft, border: `1px solid ${C.red}44`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <AlertTriangle size={15} color={C.red} />
+        <span style={{ flex: 1, fontSize: 12, color: C.red }}>Offline AI download failed. Check your connection and storage space.</span>
+        <button onClick={llm.load} style={{ background: "none", border: `1px solid ${C.red}55`, borderRadius: 8, padding: "5px 12px", color: C.red, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Retry</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: `linear-gradient(135deg, ${C.blueSoft}, ${C.surface})`, border: `1px solid ${C.blue}33`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.blueSoft, border: `1px solid ${C.blue}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Zap size={17} color={C.blue} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>Prep offline mode before your trip</div>
+          <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5 }}>
+            Download the offline AI once (about 700MB, wifi recommended) and Waymark answers repair and safety questions even with zero signal.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={llm.load}
+              style={{ background: C.blue, border: "none", borderRadius: 8, padding: "7px 14px", color: "#04121F", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+              <Download size={13} /> Download now
+            </button>
+            <button onClick={dismiss}
+              style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 14px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Later
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── DASHBOARD ─────────────────────────────────────────────────────────
-function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
+function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm }) {
   const [vibeItems, setVibeItems] = useState([
     { title: "Loading your feed...", channel: "", tag: "Tips", url: null },
     { title: "Loading your feed...", channel: "", tag: "DIY", url: null },
@@ -815,20 +911,43 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
   const [weatherError, setWeatherError] = useState("");
 
   useEffect(() => {
+    // Last successful conditions per trip, so the installed app shows
+    // something useful at a campsite with no signal
+    const tripKey = `${trip.from}->${trip.to}`;
+    function readWeatherCache() {
+      try {
+        const cached = JSON.parse(localStorage.getItem("waymark_weather_cache"));
+        return cached?.tripKey === tripKey ? cached : null;
+      } catch { return null; }
+    }
+    function fallBackToCache(message) {
+      const cached = readWeatherCache();
+      if (cached) {
+        setWeatherPoints(cached.points);
+        setWeatherAlert(cached.alert);
+        setWeatherError("No connection: showing the last saved conditions for this trip.");
+      } else {
+        setWeatherError(message);
+      }
+    }
     async function loadWeather() {
       setWeatherError("");
       try {
         const res = await fetch(`/api/weather?from=${encodeURIComponent(trip.from)}&to=${encodeURIComponent(trip.to)}`);
         const data = await res.json();
         if (data.error) {
-          setWeatherError(data.error);
+          fallBackToCache(data.error);
         } else if (data.weatherPoints) {
+          const alert = { hasAlert: data.hasAlert, message: data.alertMessage || "" };
           setWeatherPoints(data.weatherPoints);
-          setWeatherAlert({ hasAlert: data.hasAlert, message: data.alertMessage || "" });
+          setWeatherAlert(alert);
+          try {
+            localStorage.setItem("waymark_weather_cache", JSON.stringify({ tripKey, points: data.weatherPoints, alert, ts: Date.now() }));
+          } catch {}
         }
       } catch (err) {
         console.error("Failed to load weather:", err);
-        setWeatherError("Weather is unavailable right now.");
+        fallBackToCache("Weather is unavailable right now.");
       }
     }
     loadWeather();
@@ -856,6 +975,8 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
         </div>
         <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{rigProfile.year} {rigProfile.make} · {trip.from} → {trip.to}</div>
       </div>
+
+      <TripPrepPrompt llm={llm} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         {actions.map(a => (
@@ -1021,6 +1142,8 @@ function ExplorePage({ goToCopilot, rigProfile }) {
 // ─── MAIN APP ──────────────────────────────────────────────────────────
 export default function App({ user }) {
   const isMobile = useIsMobile();
+  const online = useOnline();
+  const llm = useWebLLM();
   const [tab, setTab] = useState("home");
   const [subPage, setSubPage] = useState(null);
   const [copilotPrefill, setCopilotPrefill] = useState(null);
@@ -1041,20 +1164,40 @@ export default function App({ user }) {
   useEffect(() => {
     async function loadProfile() {
       if (!user) return;
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (data && !error) {
-        setRigProfile({
-          year: data.year || "2024",
-          make: data.make || "Grand Design",
-          model: data.model || "Imagine XLS 21BHE",
-          floorPlan: data.floor_plan || "",
-          length: data.length || "29'11\"",
-          height: data.height || "11'0\"",
-          subs: data.subs || ["Harvest Hosts", "KOA"],
-        });
-        setFirstTimeBuyer(data.first_time_buyer || false);
+      // Mirror the profile locally so the installed app has rig data offline
+      try {
+        const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+        if (data && !error) {
+          const profile = {
+            year: data.year || "2024",
+            make: data.make || "Grand Design",
+            model: data.model || "Imagine XLS 21BHE",
+            floorPlan: data.floor_plan || "",
+            length: data.length || "29'11\"",
+            height: data.height || "11'0\"",
+            subs: data.subs || ["Harvest Hosts", "KOA"],
+          };
+          setRigProfile(profile);
+          setFirstTimeBuyer(data.first_time_buyer || false);
+          try {
+            localStorage.setItem("waymark_profile_cache", JSON.stringify({ profile, firstTimeBuyer: data.first_time_buyer || false }));
+          } catch {}
+        } else if (error) {
+          applyCachedProfile();
+        }
+      } catch {
+        applyCachedProfile();
       }
       setProfileLoading(false);
+    }
+    function applyCachedProfile() {
+      try {
+        const cached = JSON.parse(localStorage.getItem("waymark_profile_cache"));
+        if (cached?.profile) {
+          setRigProfile(cached.profile);
+          setFirstTimeBuyer(cached.firstTimeBuyer || false);
+        }
+      } catch {}
     }
     loadProfile();
   }, [user]);
@@ -1062,17 +1205,28 @@ export default function App({ user }) {
   useEffect(() => {
     async function saveProfile() {
       if (!user || profileLoading) return;
-      const { error } = await supabase.from("profiles").upsert({
-        id: user.id,
-        year: rigProfile.year, make: rigProfile.make, model: rigProfile.model,
-        floor_plan: rigProfile.floorPlan, length: rigProfile.length, height: rigProfile.height,
-        subs: rigProfile.subs, first_time_buyer: firstTimeBuyer,
-        updated_at: new Date().toISOString(),
-      });
-      setProfileSaveError(error ? "Could not save your rig profile. Check your connection; recent changes may not persist." : null);
+      // Local mirror first, so offline edits survive an app restart even
+      // when the Supabase write cannot go through
+      try {
+        localStorage.setItem("waymark_profile_cache", JSON.stringify({ profile: rigProfile, firstTimeBuyer }));
+      } catch {}
+      try {
+        const { error } = await supabase.from("profiles").upsert({
+          id: user.id,
+          year: rigProfile.year, make: rigProfile.make, model: rigProfile.model,
+          floor_plan: rigProfile.floorPlan, length: rigProfile.length, height: rigProfile.height,
+          subs: rigProfile.subs, first_time_buyer: firstTimeBuyer,
+          updated_at: new Date().toISOString(),
+        });
+        setProfileSaveError(error ? "Saved on this device. Could not reach the server; changes sync next time you are online." : null);
+      } catch {
+        setProfileSaveError("Saved on this device. Could not reach the server; changes sync next time you are online.");
+      }
     }
     saveProfile();
-  }, [rigProfile, firstTimeBuyer]);
+    // `online` in the deps re-runs the save when the connection returns,
+    // which is what makes offline edits actually sync
+  }, [rigProfile, firstTimeBuyer, online]);
 
   function goToCopilot(prefill = null) {
     setCopilotPrefill(prefill);
@@ -1104,7 +1258,7 @@ export default function App({ user }) {
   // ── CONTENT ────────────────────────────────────────────────────────
   const content = (
     <>
-      {tab === "home" && !subPage && <Dashboard goToCopilot={goToCopilot} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} />}
+      {tab === "home" && !subPage && <Dashboard goToCopilot={goToCopilot} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} llm={llm} />}
       {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
       {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
       {tab === "explore" && <ExplorePage goToCopilot={goToCopilot} rigProfile={rigProfile} />}
@@ -1112,7 +1266,7 @@ export default function App({ user }) {
       {/* Kept mounted (hidden) on other tabs so chat history and the loaded
           offline model survive tab switches */}
       <div style={{ height: isMobile ? "calc(100vh - 130px)" : "calc(100vh - 60px)", display: tab === "copilot" ? "flex" : "none", flexDirection: "column" }}>
-        <InlineChat rigProfile={rigProfile} firstTimeBuyer={firstTimeBuyer} prefillMessage={copilotPrefill} prefillNonce={copilotKey} />
+        <InlineChat rigProfile={rigProfile} firstTimeBuyer={firstTimeBuyer} prefillMessage={copilotPrefill} prefillNonce={copilotKey} llm={llm} />
       </div>
       {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} saveError={profileSaveError} />}
     </>
@@ -1135,7 +1289,8 @@ export default function App({ user }) {
             </div>
             <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em", color: C.text }}>waymark</span>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {!online && <OfflineBadge />}
             <button onClick={() => goToCopilot("Show me my current rig alerts")} aria-label="Rig alerts" style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
               <Bell size={15} />
             </button>
@@ -1229,11 +1384,14 @@ export default function App({ user }) {
               {subPage === "vibefeed" && " · Vibe Feed"}
             </span>
           </div>
-          <button onClick={() => goToCopilot("Show me my current rig alerts")}
-            style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: "inherit" }}>
-            <Bell size={15} />
-            Alerts
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {!online && <OfflineBadge />}
+            <button onClick={() => goToCopilot("Show me my current rig alerts")}
+              style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontFamily: "inherit" }}>
+              <Bell size={15} />
+              Alerts
+            </button>
+          </div>
         </div>
 
         {/* Page content */}

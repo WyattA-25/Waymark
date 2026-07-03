@@ -10,6 +10,15 @@ Critical paths are covered by automated tests in `e2e/`: auth (real Supabase sig
 - Real-Firefox fallback tests are gated: set `E2E_FIREFOX=1` (needs the Microsoft VC++ redistributable for Playwright's Firefox build); the same no-WebGPU path always runs in Chromium with `navigator.gpu` removed
 - Weather and forecast integration tests skip automatically when api.open-meteo.com (a free provider with real outages) is unreachable
 
+## PWA / offline app checks
+
+The service worker only runs in production builds (`npm run build` then `npm run start`); `npm run dev` never registers it, so dev work is not affected by stale caches.
+
+- [ ] Visit the production site in Chrome or Edge. Expected: an install prompt is available (address bar icon or browser menu, "Install Waymark").
+- [ ] Sign in, then set devtools Network to Offline and reload. Expected: the dashboard still renders with your rig profile, an Offline pill in the top bar, and the weather strip showing the last saved conditions for your trip (or an unavailable notice on a first visit).
+- [ ] Dashboard shows the "Prep offline mode before your trip" card when the offline AI is not downloaded. Expected: Download now starts the ~700MB download with a progress bar; Later hides the card permanently (it stays available in Co-Pilot); the card never shows on browsers without WebGPU.
+- [ ] Edit the rig profile while offline. Expected: a notice says changes are saved on this device and will sync; going back online pushes them to Supabase (verify in the Table Editor or by reloading online later).
+
 ## Manual QA checklist
 
 Run through this list before each release. Test in Chrome or Edge (full experience) plus one browser without WebGPU (Firefox or Safari) for the unsupported-browser checks. Test both layouts: mobile is any viewport under 768px wide (use devtools device emulation), desktop is 768px and up.

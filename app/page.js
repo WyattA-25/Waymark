@@ -5,21 +5,58 @@ import { supabase } from "../lib/supabase";
 import Auth from "./components/Auth";
 import Waymark from "./components/Waymark";
 
+const USER_CACHE_KEY = "waymark_user_cache";
+
+function readCachedUser() {
+  try {
+    const raw = localStorage.getItem(USER_CACHE_KEY);
+    const cached = raw ? JSON.parse(raw) : null;
+    return cached?.id ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Page() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
+    // Keep the app shell available offline (production only, so dev never
+    // fights a stale cache)
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    // Check if user is already logged in. Offline, an expired session cannot
+    // refresh; fall back to the last signed-in user so the installed app
+    // still opens (profile and chat work from local data).
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+        try {
+          localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ id: session.user.id, email: session.user.email }));
+        } catch {}
+      } else if (!navigator.onLine) {
+        setUser(readCachedUser());
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    }).catch(() => {
+      setUser(navigator.onLine ? null : readCachedUser());
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
+      (event, session) => {
+        if (event === "SIGNED_OUT") {
+          try { localStorage.removeItem(USER_CACHE_KEY); } catch {}
+          setUser(null);
+          return;
+        }
+        if (session?.user) setUser(session.user);
       }
     );
 
