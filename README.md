@@ -1,5 +1,7 @@
 # Waymark
 
+**Live: [waymark-one.vercel.app](https://waymark-one.vercel.app)**
+
 An AI-powered RV co-pilot built with Next.js. Chat runs two ways: Gemini in the cloud, and Llama 3.2 fully offline in the browser via WebLLM, so it still answers at a campsite with no signal.
 
 ![Waymark dashboard](docs/screenshot-dashboard.png)
@@ -35,4 +37,4 @@ On first use the app downloads a quantized Llama 3.2 1B model (~700MB) into brow
 4. `npm run dev`
 
 ## Status
-🚧 In active development
+🚧 In active development, deployed and live
