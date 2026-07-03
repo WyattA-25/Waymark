@@ -6,7 +6,7 @@ Critical paths are covered by automated tests in `e2e/`: auth (real Supabase sig
 
 - Run: `npm run test:e2e` (starts its own dev server on port 3011)
 - Credentials: put `TEST_EMAIL` / `TEST_PASSWORD` for a real test account in `.env.test.local` (gitignored); tests needing them are skipped when unset
-- The full ~700MB offline model download-and-answer test is gated: set `RUN_WEBLLM_E2E=1` to include it
+- The full ~700MB offline model download-and-answer test is gated: set `RUN_WEBLLM_E2E=1` to include it. It also self-skips when the automated browser has no WebGPU (common: Playwright's headless shell has no WebGPU build, and automated Chromium often does not expose `navigator.gpu` on Windows). When it skips, verify offline mode by hand using the "Co-Pilot chat: offline mode" section below in a normal Chrome or Edge window.
 - Real-Firefox fallback tests are gated: set `E2E_FIREFOX=1` (needs the Microsoft VC++ redistributable for Playwright's Firefox build); the same no-WebGPU path always runs in Chromium with `navigator.gpu` removed
 - Weather and forecast integration tests skip automatically when api.open-meteo.com (a free provider with real outages) is unreachable
 

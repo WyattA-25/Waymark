@@ -41,6 +41,17 @@ test.describe("offline mode", () => {
     await signIn(page);
     await page.getByRole("button", { name: "Co-Pilot" }).click();
 
+    // WebLLM needs WebGPU, which is often unavailable under automated
+    // Chromium (Playwright's headless shell has no WebGPU, and full/headed
+    // Chromium does not expose navigator.gpu under automation on many
+    // Windows setups). Skip rather than hang for 30 minutes; the same path
+    // is verified manually per docs/TESTING.md.
+    const hasWebGPU = await page.evaluate(async () => {
+      if (!navigator.gpu) return false;
+      try { return !!(await navigator.gpu.requestAdapter()); } catch { return false; }
+    });
+    test.skip(!hasWebGPU, "WebGPU unavailable in this automated browser; verify offline mode manually (see docs/TESTING.md)");
+
     await page.getByText("Download offline AI for emergency use").click();
     await expect(page.getByText("Offline AI ready: answers even with no internet")).toBeVisible({ timeout: 1_500_000 });
 
