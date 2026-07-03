@@ -4,7 +4,7 @@
 
 Critical paths are covered by automated tests in `e2e/`: auth (real Supabase sign-in, wrong password, session persistence, sign out), cloud chat (real Gemini answer, unreachable fallback, history across tabs), API route integration (validation, auth gates, real upstream data), graceful degradation (each upstream killed one at a time), and the no-WebGPU offline fallback (Chromium with WebGPU removed, plus real Firefox).
 
-- Run: `npm run test:e2e` (starts its own dev server on port 3011)
+- Run: `npm run test:e2e` (starts its own dev server on port 3011). Stop any running `npm run dev` first: Next.js allows only one dev server per project directory (.next/dev lock), so a second one fails to start.
 - Credentials: put `TEST_EMAIL` / `TEST_PASSWORD` for a real test account in `.env.test.local` (gitignored); tests needing them are skipped when unset
 - The full ~700MB offline model download-and-answer test is gated: set `RUN_WEBLLM_E2E=1` to include it. It also self-skips when the automated browser has no WebGPU (common: Playwright's headless shell has no WebGPU build, and automated Chromium often does not expose `navigator.gpu` on Windows). When it skips, verify offline mode by hand using the "Co-Pilot chat: offline mode" section below in a normal Chrome or Edge window.
 - Real-Firefox fallback tests are gated: set `E2E_FIREFOX=1` (needs the Microsoft VC++ redistributable for Playwright's Firefox build); the same no-WebGPU path always runs in Chromium with `navigator.gpu` removed
@@ -93,7 +93,7 @@ Run through this list before each release. Test in Chrome or Edge (full experien
 
 ## Sites tab (campsite search)
 
-- [ ] Search a term (e.g. "Yellowstone") with a state selected. Expected: campground cards with name, description, state, phone, and a Reservable badge where applicable; the notice above results shows your rig length and explains that too-short sites are excluded.
+- [ ] Search a term (e.g. "Yellowstone") with a state selected. Expected: campground cards with name, description, state, phone, and a Reservable badge where applicable; the notice above results shows your rig length and points to Ask Waymark AI for fit checks.
 - [ ] Click Ask Waymark AI on a result. Expected: opens Co-Pilot prefilled with a question about that campground and your rig.
 - [ ] Click Reserve. Expected: opens the Recreation.gov page in a new tab.
 - [ ] Search a nonsense term. Expected: "No campgrounds found. Try a different search term or state." (not an error, not a blank page).

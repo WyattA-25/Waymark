@@ -361,7 +361,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce }
   }, [messages, typing]);
 
   async function sendMsg(text) {
-    if (!text.trim()) return;
+    if (!text.trim() || typing) return;
     const newMessages = [...messages, { role: "user", text }];
     setMessages(newMessages);
     setInput("");
@@ -607,10 +607,11 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce }
           onKeyDown={e => e.key === "Enter" && sendMsg(input)}
           placeholder={llmStatus === "ready" ? "Ask anything, even offline..." : "Ask Waymark anything about your rig..."}
           aria-label="Message Waymark AI"
-          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit" }}
+          disabled={typing}
+          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", opacity: typing ? 0.6 : 1 }}
         />
-        <button onClick={() => sendMsg(input)} aria-label="Send message"
-          style={{ width: 42, height: 42, borderRadius: 10, background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <button onClick={() => sendMsg(input)} aria-label="Send message" disabled={typing}
+          style={{ width: 42, height: 42, borderRadius: 10, background: C.accent, border: "none", cursor: typing ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: typing ? 0.6 : 1 }}>
           <Send size={16} color="#1A0800" />
         </button>
       </div>
@@ -625,6 +626,7 @@ function NHTSAModelPicker({ rigProfile, setRigProfile }) {
 
   useEffect(() => {
     if (!rigProfile.make || !rigProfile.year) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- standard fetch-on-change loading flag
     setLoading(true);
     fetch(`/api/rig-models?make=${encodeURIComponent(rigProfile.make)}&year=${rigProfile.year}`)
       .then(r => r.json())
@@ -708,7 +710,7 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
               placeholder="e.g. 295RL, 21BHE, 310RLS"
               aria-label="Floor Plan"
               style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Found on your window sticker or manufacturer's website</div>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Found on your window sticker or manufacturer&apos;s website</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>

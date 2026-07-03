@@ -38,10 +38,11 @@ export function useWebLLM() {
         setStatus("ready");
         logMetric("offline_model_loaded");
       } catch (err) {
+        // Swallow rather than rethrow: buttons call load() directly, and the
+        // send flow already fails safely via generate() when no engine exists.
         console.error("WebLLM load error:", err);
         setStatus("error");
         logMetric("offline_model_load_failed", { message: err.message });
-        throw err;
       } finally {
         loadPromiseRef.current = null;
       }
