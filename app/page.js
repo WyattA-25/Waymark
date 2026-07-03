@@ -28,6 +28,16 @@ export default function Page() {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
 
+    // Stash the browser install prompt (Chrome and Edge fire this once per
+    // load, often before sign-in) so the dashboard offline card can trigger
+    // the real install from its own Download button
+    const onInstallPrompt = (e) => {
+      e.preventDefault();
+      window.__waymarkInstallPrompt = e;
+      window.dispatchEvent(new Event("waymark-installable"));
+    };
+    window.addEventListener("beforeinstallprompt", onInstallPrompt);
+
     // Check if user is already logged in. Offline, an expired session cannot
     // refresh; fall back to the last signed-in user so the installed app
     // still opens (profile and chat work from local data).
@@ -60,7 +70,10 @@ export default function Page() {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("beforeinstallprompt", onInstallPrompt);
+    };
   }, []);
 
   if (loading) {

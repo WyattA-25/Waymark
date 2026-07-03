@@ -797,20 +797,65 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
   );
 }
 
-// ─── TRIP PREP PROMPT ──────────────────────────────────────────────────
-// Nudges the one-time offline AI download before a trip, when it matters.
-// Hidden when unsupported, already downloaded, or dismissed with Later.
-function TripPrepPrompt({ llm }) {
+// ─── OFFLINE SETUP CARD ────────────────────────────────────────────────
+// One decision for the user: use the site with cloud AI, or download once
+// and get the installed app plus the offline model together. The Download
+// button triggers the browser install prompt (when the browser offers one)
+// and starts the model download in the same click.
+function useInstallState() {
+  // Lazy initializers read the stashed prompt and display mode at mount,
+  // so the effect only has to react to later events
+  const [installPrompt, setInstallPrompt] = useState(() =>
+    typeof window === "undefined" ? null : window.__waymarkInstallPrompt || null
+  );
+  const [installed, setInstalled] = useState(() =>
+    typeof window !== "undefined" &&
+    (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true)
+  );
+  useEffect(() => {
+    const sync = () => setInstallPrompt(window.__waymarkInstallPrompt || null);
+    const onInstalled = () => {
+      window.__waymarkInstallPrompt = null;
+      setInstallPrompt(null);
+      setInstalled(true);
+      logMetric("app_installed");
+    };
+    window.addEventListener("waymark-installable", sync);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("waymark-installable", sync);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  return { installPrompt, installed };
+}
+
+function OfflineSetupCard({ llm }) {
+  const { installPrompt, installed } = useInstallState();
   const [dismissed, setDismissed] = useState(() => {
     try { return localStorage.getItem("waymark_offline_prompt") === "dismissed"; } catch { return false; }
   });
 
-  if (!llm || llm.status === "unsupported" || llm.status === "ready") return null;
-  if (dismissed && llm.status === "idle") return null;
+  if (!llm || llm.status === "unsupported") return null;
+  const modelReady = llm.status === "ready";
+  if (modelReady && installed) return null;
+  if (dismissed && (llm.status === "idle" || modelReady)) return null;
 
   function dismiss() {
     try { localStorage.setItem("waymark_offline_prompt", "dismissed"); } catch {}
     setDismissed(true);
+  }
+
+  async function downloadEverything() {
+    const prompt = installPrompt;
+    if (prompt) {
+      try {
+        prompt.prompt();
+        await prompt.userChoice;
+      } catch {}
+      window.__waymarkInstallPrompt = null;
+    }
+    if (llm.status !== "ready") llm.load();
   }
 
   if (llm.status === "loading") {
@@ -818,7 +863,7 @@ function TripPrepPrompt({ llm }) {
       <div style={{ background: C.blueSoft, border: `1px solid ${C.blue}33`, borderRadius: 14, padding: "12px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: C.blue }}>
-            <Zap size={13} /> Downloading Offline AI: {llm.progress}%
+            <Zap size={13} /> Setting up offline mode: {llm.progress}%
           </span>
           <span style={{ fontSize: 10, color: C.muted }}>First time only</span>
         </div>
@@ -839,6 +884,28 @@ function TripPrepPrompt({ llm }) {
     );
   }
 
+  // Model ready but the app is not installed yet: offer the missing half
+  if (modelReady) {
+    return (
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.green, display: "inline-block", flexShrink: 0 }} />
+        <span style={{ flex: 1, minWidth: 180, fontSize: 12, color: C.textSub }}>
+          Offline AI is ready. {installPrompt ? "Install the app to finish offline setup." : "To finish, install the app from your browser menu (Install Waymark), or on iPhone: Share, then Add to Home Screen."}
+        </span>
+        {installPrompt && (
+          <button onClick={downloadEverything}
+            style={{ background: C.blue, border: "none", borderRadius: 8, padding: "7px 14px", color: "#04121F", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+            Install app
+          </button>
+        )}
+        <button onClick={dismiss} aria-label="Hide"
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: `linear-gradient(135deg, ${C.blueSoft}, ${C.surface})`, border: `1px solid ${C.blue}33`, borderRadius: 14, padding: "14px 16px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -846,14 +913,19 @@ function TripPrepPrompt({ llm }) {
           <Zap size={17} color={C.blue} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>Prep offline mode before your trip</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 3 }}>Take Waymark offline</div>
           <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5 }}>
-            Download the offline AI once (about 700MB, wifi recommended) and Waymark answers repair and safety questions even with zero signal.
+            Use the site with cloud AI anytime. Or download once to get the installed app plus the offline AI (about 700MB, wifi recommended) for trips with zero signal.
           </div>
+          {!installPrompt && !installed && (
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, marginTop: 6 }}>
+              The AI downloads right here. To add the app itself: browser menu, Install Waymark; on iPhone: Share, then Add to Home Screen.
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button onClick={llm.load}
+            <button onClick={downloadEverything}
               style={{ background: C.blue, border: "none", borderRadius: 8, padding: "7px 14px", color: "#04121F", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
-              <Download size={13} /> Download now
+              <Download size={13} /> Download for offline
             </button>
             <button onClick={dismiss}
               style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 14px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
@@ -970,7 +1042,7 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm })
         <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>{rigProfile.year} {rigProfile.make} · {trip.from} → {trip.to}</div>
       </div>
 
-      <TripPrepPrompt llm={llm} />
+      <OfflineSetupCard llm={llm} />
 
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>

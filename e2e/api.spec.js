@@ -42,23 +42,9 @@ test.describe("api routes", () => {
     expect(body.text.length).toBeGreaterThan(0);
   });
 
-  // Weather and forecast depend on api.open-meteo.com, a free provider that
-  // has real outages. Skip (rather than fail) when it is unreachable, so the
-  // suite stays meaningful during provider downtime.
-  async function openMeteoReachable(request) {
-    try {
-      const probe = await request.get(
-        "https://api.open-meteo.com/v1/forecast?latitude=40&longitude=-105&current=temperature_2m",
-        { timeout: 8_000 }
-      );
-      return probe.ok();
-    } catch {
-      return false;
-    }
-  }
-
+  // Weather and forecast fail over from Open-Meteo to the National Weather
+  // Service, so these run regardless of a single provider outage.
   test("weather returns waypoints for a real route", async ({ request }) => {
-    test.skip(!(await openMeteoReachable(request)), "api.open-meteo.com unreachable (provider outage)");
     const res = await request.get("/api/weather?from=Denver&to=Moab", { timeout: 60_000 });
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -73,7 +59,6 @@ test.describe("api routes", () => {
   });
 
   test("forecast returns daily cards", async ({ request }) => {
-    test.skip(!(await openMeteoReachable(request)), "api.open-meteo.com unreachable (provider outage)");
     const res = await request.get("/api/forecast?from=Pittsburgh&to=Yellowstone", { timeout: 90_000 });
     expect(res.status()).toBe(200);
     const body = await res.json();

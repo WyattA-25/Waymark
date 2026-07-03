@@ -16,7 +16,8 @@ The service worker only runs in production builds (`npm run build` then `npm run
 
 - [ ] Visit the production site in Chrome or Edge. Expected: an install prompt is available (address bar icon or browser menu, "Install Waymark").
 - [ ] Sign in, then set devtools Network to Offline and reload. Expected: the dashboard still renders with your rig profile, an Offline pill in the top bar, and the weather strip showing the last saved conditions for your trip (or an unavailable notice on a first visit).
-- [ ] Dashboard shows the "Prep offline mode before your trip" card when the offline AI is not downloaded. Expected: Download now starts the ~700MB download with a progress bar; Later hides the card permanently (it stays available in Co-Pilot); the card never shows on browsers without WebGPU.
+- [ ] Dashboard shows the "Take Waymark offline" card when setup is incomplete. Expected: in Chrome or Edge, Download for offline opens the browser install dialog AND starts the ~700MB model download in one click; on browsers without an install prompt (iPhone), the AI still downloads and the card explains Share, then Add to Home Screen. Later hides the card (the download stays available in Co-Pilot). The card never shows on browsers without WebGPU, and disappears once the app is installed and the model is ready.
+- [ ] With the model downloaded but the app not installed, the card compacts to "Offline AI is ready" with an Install app button (or manual install instructions).
 - [ ] Edit the rig profile while offline. Expected: a notice says changes are saved on this device and will sync; going back online pushes them to Supabase (verify in the Table Editor or by reloading online later).
 
 ## Manual QA checklist
