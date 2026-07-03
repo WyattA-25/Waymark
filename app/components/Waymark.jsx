@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { useWebLLM } from "./useWebLLM";
 import {
   Wind, Droplets, AlertTriangle,
-  Wrench, Navigation, User, Home,
+  Navigation, User, Home,
   Star, Bell, X, Send, MessageSquare,
   Tent, Car, Zap, Cloud, Download,
   ToggleLeft, ToggleRight, Bot, Compass, Sun,
@@ -961,12 +961,6 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm })
     try { localStorage.setItem("waymark_trip", JSON.stringify(next)); } catch {}
   }
 
-  const actions = [
-    { label: "Fix Issue", icon: <Wrench size={16} />, color: C.accent, prompt: "I need help diagnosing an issue with my RV" },
-    { label: "Plan Route", icon: <Navigation size={16} />, color: C.blue, prompt: "Help me plan a route for my upcoming trip" },
-    { label: "Find Site", icon: <Tent size={16} />, color: C.green, prompt: "Help me find a great campsite for my rig" },
-  ];
-
   return (
     <div style={{ padding: "0 20px 100px", display: "flex", flexDirection: "column", gap: 28 }}>
       <div style={{ paddingTop: 28 }}>
@@ -977,21 +971,6 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm })
       </div>
 
       <TripPrepPrompt llm={llm} />
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-        {actions.map(a => (
-          <button key={a.label} onClick={() => goToCopilot(a.prompt)}
-            style={{ padding: "16px 6px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = a.color; e.currentTarget.style.background = `${a.color}11`; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}
-          >
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: `${a.color}18`, display: "flex", alignItems: "center", justifyContent: "center", color: a.color }}>
-              {a.icon}
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.textSub, letterSpacing: "0.01em" }}>{a.label}</span>
-          </button>
-        ))}
-      </div>
 
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>

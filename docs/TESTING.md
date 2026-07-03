@@ -46,8 +46,7 @@ Run through this list before each release. Test in Chrome or Edge (full experien
 
 ## Dashboard (Home)
 
-- [ ] Load the Home tab. Expected: time-appropriate greeting, rig year and make, and the current trip (From and To) in the subtitle.
-- [ ] Click each quick action (Fix Issue, Plan Route, Find Site). Expected: switches to Co-Pilot with the matching question already sent.
+- [ ] Load the Home tab. Expected: time-appropriate greeting, rig year and make, and the current trip (From and To) in the subtitle. No quick-action buttons: Co-Pilot lives in the nav bar.
 - [ ] Route Weather strip renders. Expected: 5 waypoint columns, each with a city name, temperature, and wind speed (not stuck on "..." or "--").
 - [ ] Click Edit Trip, change From and To to valid cities, Save. Expected: weather strip reloads with new waypoints; the trip survives a page reload (localStorage).
 - [ ] Enter an invalid To city (e.g. "zzzzqqq") and Save. Expected: a friendly red error like: Could not find "zzzzqqq". Try a city name like "Denver" or "Moab, UT". The rest of the page still renders.
