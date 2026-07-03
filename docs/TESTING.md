@@ -20,6 +20,16 @@ The service worker only runs in production builds (`npm run build` then `npm run
 - [ ] With the model downloaded but the app not installed, the card compacts to "Offline AI is ready" with an Install app button (or manual install instructions).
 - [ ] Edit the rig profile while offline. Expected: a notice says changes are saved on this device and will sync; going back online pushes them to Supabase (verify in the Table Editor or by reloading online later).
 
+## Pro tier checks
+
+Grant an account Pro with the SQL comment at the bottom of `supabase/migrations/003_pro.sql` (there is no payment flow yet).
+
+- [ ] Free account, Rig tab. Expected: a locked "Maintenance log" card with the PRO badge and a disabled "Payments coming soon" button; no maintenance list.
+- [ ] Pro account, Rig tab. Expected: a Maintenance section with + Add; adding an item with a due date shows it with a due chip (Overdue red when past, Due soon orange within 14 days); Done on a repeating item reschedules it (due date advances by the repeat interval); Done on a one-off removes it.
+- [ ] Pro account, dashboard. Expected: when items are overdue or due within 14 days, an orange reminder banner shows the count and tapping it opens the Rig tab.
+- [ ] Pro account offline. Expected: the maintenance list still shows (local mirror); adds and edits are marked "syncs when online" and push to Supabase when the connection returns.
+- [ ] Pro chat: cloud answers come from the smarter model (gemini-2.5-pro) and the per-user limit is 150 per 10 minutes instead of 30. Verify by checking the Vercel function logs or by rig-specific answer quality; there is no visible model label in the UI.
+
 ## Manual QA checklist
 
 Run through this list before each release. Test in Chrome or Edge (full experience) plus one browser without WebGPU (Firefox or Safari) for the unsupported-browser checks. Test both layouts: mobile is any viewport under 768px wide (use devtools device emulation), desktop is 768px and up.

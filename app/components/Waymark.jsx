@@ -3,8 +3,9 @@
 import Image from "next/image";
 import { supabase } from "../../lib/supabase";
 import { logMetric } from "../../lib/metrics";
+import { fetchPlan, isPro as planIsPro } from "../../lib/entitlement";
 import CampsiteSearch from "./CampsiteSearch";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useWebLLM } from "./useWebLLM";
 import {
   Wind, Droplets, AlertTriangle,
@@ -12,7 +13,8 @@ import {
   Star, Bell, X, Send, MessageSquare,
   Tent, Car, Zap, Cloud, Download,
   ToggleLeft, ToggleRight, Bot, Compass, Sun,
-  ArrowLeft, ChevronRight, WifiOff
+  ArrowLeft, ChevronRight, WifiOff,
+  Lock, Plus, Check, Wrench
 } from "lucide-react";
 
 const C = {
@@ -685,8 +687,272 @@ function NHTSAModelPicker({ rigProfile, setRigProfile }) {
   );
 }
 
+// ─── MAINTENANCE LOG (Pro) ─────────────────────────────────────────────
+// Rig maintenance with due reminders. Items live in Supabase with a local
+// mirror, so the log reads offline and offline edits sync on reconnect.
+
+const MAINT_CATEGORIES = ["General", "Engine", "Tires", "Brakes", "Water", "Propane", "Seals", "Electrical"];
+const MAINT_CACHE_KEY = "waymark_maintenance_cache";
+
+function readMaintCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(MAINT_CACHE_KEY));
+    return { items: Array.isArray(cached?.items) ? cached.items : [], deleted: Array.isArray(cached?.deleted) ? cached.deleted : [] };
+  } catch {
+    return { items: [], deleted: [] };
+  }
+}
+
+function writeMaintCache(items, deleted) {
+  try { localStorage.setItem(MAINT_CACHE_KEY, JSON.stringify({ items, deleted })); } catch {}
+}
+
+function maintDueStatus(item) {
+  if (!item.due_date) return "none";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((new Date(`${item.due_date}T00:00:00`) - today) / 86400000);
+  if (days < 0) return "overdue";
+  if (days <= 14) return "soon";
+  return "ok";
+}
+
+function maintDueCount(items) {
+  return items.filter(i => ["overdue", "soon"].includes(maintDueStatus(i))).length;
+}
+
+function sortMaint(items) {
+  const rank = { overdue: 0, soon: 1, ok: 2, none: 3 };
+  return [...items].sort((a, b) =>
+    rank[maintDueStatus(a)] - rank[maintDueStatus(b)]
+    || String(a.due_date || "9999").localeCompare(String(b.due_date || "9999"))
+  );
+}
+
+function addMonths(dateStr, months) {
+  const d = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+function ProUpsellCard() {
+  return (
+    <Card>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.accentSoft, border: `1px solid ${C.accent}33`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Lock size={16} color={C.accent} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Maintenance log</span>
+            <Badge color={C.accent} bg={C.accentSoft}>PRO</Badge>
+          </div>
+          <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.5 }}>
+            Track rig maintenance with due reminders, plus a smarter cloud AI and higher chat limits. $4.99/mo.
+          </div>
+          <button disabled
+            style={{ marginTop: 10, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 14px", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "not-allowed", fontFamily: "inherit" }}>
+            Payments coming soon
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function MaintenanceSection({ user, online }) {
+  const [items, setItems] = useState(() => readMaintCache().items);
+  const [deleted, setDeleted] = useState(() => readMaintCache().deleted);
+  const [loaded, setLoaded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", category: "General", dueDate: "", repeatMonths: "" });
+
+  function persist(nextItems, nextDeleted) {
+    setItems(nextItems);
+    setDeleted(nextDeleted);
+    writeMaintCache(nextItems, nextDeleted);
+  }
+
+  // Push local changes (dirty rows, queued deletes), then pull the truth
+  async function syncAndLoad() {
+    try {
+      const cache = readMaintCache();
+      for (const id of cache.deleted) {
+        await supabase.from("maintenance_items").delete().eq("id", id);
+      }
+      const dirty = cache.items.filter(i => i._dirty);
+      if (dirty.length > 0) {
+        await supabase.from("maintenance_items").upsert(
+          dirty.map(({ _dirty, ...row }) => ({ ...row, user_id: user.id, updated_at: new Date().toISOString() }))
+        );
+      }
+      const { data, error } = await supabase
+        .from("maintenance_items").select("*").order("due_date", { ascending: true });
+      if (error) throw error;
+      persist(data || [], []);
+      setLoaded(true);
+    } catch {
+      // Offline or table missing: the mirror already backs the UI
+      setLoaded(true);
+    }
+  }
+
+  useEffect(() => {
+    if (online) syncAndLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online]);
+
+  async function upsertItem(item) {
+    const clean = { ...item };
+    delete clean._dirty;
+    const next = items.some(i => i.id === item.id)
+      ? items.map(i => (i.id === item.id ? item : i))
+      : [...items, item];
+    try {
+      if (!navigator.onLine) throw new Error("offline");
+      const { error } = await supabase.from("maintenance_items")
+        .upsert({ ...clean, user_id: user.id, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      persist(next.map(i => (i.id === item.id ? clean : i)), deleted);
+    } catch {
+      persist(next.map(i => (i.id === item.id ? { ...clean, _dirty: true } : i)), deleted);
+    }
+  }
+
+  async function removeItem(id) {
+    const next = items.filter(i => i.id !== id);
+    try {
+      if (!navigator.onLine) throw new Error("offline");
+      const { error } = await supabase.from("maintenance_items").delete().eq("id", id);
+      if (error) throw error;
+      persist(next, deleted);
+    } catch {
+      persist(next, [...deleted, id]);
+    }
+  }
+
+  function addItem() {
+    if (!form.title.trim()) return;
+    const repeat = parseInt(form.repeatMonths);
+    upsertItem({
+      id: crypto.randomUUID(),
+      title: form.title.trim().slice(0, 120),
+      category: form.category,
+      notes: null,
+      due_date: form.dueDate || null,
+      repeat_months: Number.isFinite(repeat) && repeat > 0 ? Math.min(repeat, 60) : null,
+      last_done: null,
+      created_at: new Date().toISOString(),
+    });
+    setForm({ title: "", category: "General", dueDate: "", repeatMonths: "" });
+    setShowForm(false);
+  }
+
+  function markDone(item) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (item.repeat_months) {
+      upsertItem({ ...item, last_done: today, due_date: addMonths(today, item.repeat_months) });
+    } else {
+      removeItem(item.id);
+    }
+  }
+
+  const sorted = sortMaint(items);
+  const dueCount = maintDueCount(items);
+  const chipStyles = {
+    overdue: { color: C.red, bg: C.redSoft, label: "Overdue" },
+    soon: { color: C.accent, bg: C.accentSoft, label: "Due soon" },
+  };
+
+  return (
+    <div>
+      <SectionLabel action={showForm ? "Cancel" : "+ Add"} onAction={() => setShowForm(s => !s)}>
+        Maintenance {dueCount > 0 ? `(${dueCount} due)` : ""}
+      </SectionLabel>
+
+      {showForm && (
+        <Card style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              onKeyDown={e => e.key === "Enter" && addItem()}
+              placeholder='e.g. "Repack wheel bearings"' aria-label="Task"
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} aria-label="Category"
+                style={{ flex: 1, minWidth: 110, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit" }}>
+                {MAINT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} aria-label="Due date"
+                style={{ flex: 1, minWidth: 130, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit", colorScheme: "dark" }} />
+              <input type="number" min="1" max="60" value={form.repeatMonths} onChange={e => setForm(f => ({ ...f, repeatMonths: e.target.value }))}
+                placeholder="Repeat (mo)" aria-label="Repeat every months"
+                style={{ width: 110, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit" }} />
+            </div>
+            <button onClick={addItem}
+              style={{ background: C.accent, border: "none", borderRadius: 8, padding: "9px 14px", color: "#1A0800", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Plus size={14} /> Add item
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {loaded && sorted.length === 0 && !showForm && (
+        <div style={{ fontSize: 12, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+          No maintenance items yet. Add things like bearing repacks, roof seal checks, or water filter changes and Waymark reminds you when they come due.
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {sorted.map(item => {
+          const status = maintDueStatus(item);
+          const chip = chipStyles[status];
+          return (
+            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${status === "overdue" ? `${C.red}55` : C.border}`, borderRadius: 12, padding: "10px 12px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexWrap: "wrap" }}>
+                  <Badge color={C.blue} bg={C.blueSoft}>{item.category}</Badge>
+                  {chip && <Badge color={chip.color} bg={chip.bg}>{chip.label}</Badge>}
+                  {item.due_date && <span style={{ fontSize: 10, color: C.muted }}>due {item.due_date}</span>}
+                  {item.repeat_months && <span style={{ fontSize: 10, color: C.muted }}>every {item.repeat_months} mo</span>}
+                  {item._dirty && <span style={{ fontSize: 10, color: C.blue }}>syncs when online</span>}
+                </div>
+              </div>
+              <button onClick={() => markDone(item)} aria-label={`Done: ${item.title}`} title={item.repeat_months ? "Done: schedules the next one" : "Done: removes the item"}
+                style={{ background: C.greenSoft, border: `1px solid ${C.green}33`, borderRadius: 8, padding: "6px 8px", color: C.green, cursor: "pointer", display: "flex", alignItems: "center", flexShrink: 0 }}>
+                <Check size={14} />
+              </button>
+              <button onClick={() => removeItem(item.id)} aria-label={`Delete: ${item.title}`}
+                style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 8px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center", flexShrink: 0 }}>
+                <X size={14} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Small dashboard nudge fed by the local mirror
+function MaintenanceReminder({ pro, onView }) {
+  const dueCount = useMemo(() => (pro ? maintDueCount(readMaintCache().items) : 0), [pro]);
+  if (!pro || dueCount === 0) return null;
+  return (
+    <div onClick={onView} role="button" tabIndex={0}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onView(); } }}
+      style={{ display: "flex", alignItems: "center", gap: 10, background: C.accentSoft, border: `1px solid ${C.accent}33`, borderRadius: 12, padding: "11px 14px", cursor: "pointer" }}>
+      <Wrench size={15} color={C.accent} />
+      <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.accent }}>
+        {dueCount} maintenance {dueCount === 1 ? "item is" : "items are"} due or coming up
+      </span>
+      <ChevronRight size={14} color={C.accent} />
+    </div>
+  );
+}
+
 // ─── PROFILE TAB ───────────────────────────────────────────────────────
-function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuyer, saveError }) {
+function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuyer, saveError, user, pro, online }) {
   const subs = ["Harvest Hosts", "KOA", "Thousand Trails", "Good Sam", "Boondockers Welcome", "Passport America", "RV Trip Wizard", "Campendium Pro"];
   return (
     <div style={{ padding: "0 16px 140px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -798,6 +1064,8 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
           <div style={{ fontSize: 12, color: C.textSub, lineHeight: 1.6 }}>{rigProfile.subs.join(" · ")}</div>
         </div>
       )}
+
+      {pro ? <MaintenanceSection user={user} online={online} /> : <ProUpsellCard />}
     </div>
   );
 }
@@ -946,7 +1214,7 @@ function OfflineSetupCard({ llm }) {
 }
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────
-function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm }) {
+function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm, pro, openMaintenance }) {
   const [vibeItems, setVibeItems] = useState([
     { title: "Loading your feed...", channel: "", tag: "Tips", url: null },
     { title: "Loading your feed...", channel: "", tag: "DIY", url: null },
@@ -1050,6 +1318,8 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile, llm })
       </div>
 
       <OfflineSetupCard llm={llm} />
+
+      <MaintenanceReminder pro={pro} onView={openMaintenance} />
 
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -1202,7 +1472,15 @@ export default function App({ user }) {
   const isMobile = useIsMobile();
   const online = useOnline();
   const llm = useWebLLM();
+  const [entitlement, setEntitlement] = useState(null);
+  const pro = planIsPro(entitlement);
   const [tab, setTab] = useState("home");
+
+  // Refresh the plan when the connection returns; offline it resolves from
+  // the local cache with a grace window
+  useEffect(() => {
+    fetchPlan().then(setEntitlement);
+  }, [online]);
   const [subPage, setSubPage] = useState(null);
   const [copilotPrefill, setCopilotPrefill] = useState(null);
   const [copilotKey, setCopilotKey] = useState(0);
@@ -1316,7 +1594,7 @@ export default function App({ user }) {
   // ── CONTENT ────────────────────────────────────────────────────────
   const content = (
     <>
-      {tab === "home" && !subPage && <Dashboard goToCopilot={goToCopilot} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} llm={llm} />}
+      {tab === "home" && !subPage && <Dashboard goToCopilot={goToCopilot} openForecast={() => setSubPage("forecast")} openVibeFeed={() => setSubPage("vibefeed")} rigProfile={rigProfile} llm={llm} pro={pro} openMaintenance={() => { setSubPage(null); setTab("profile"); }} />}
       {tab === "home" && subPage === "forecast" && <FullForecastPage onBack={() => setSubPage(null)} />}
       {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
       {tab === "explore" && <ExplorePage goToCopilot={goToCopilot} rigProfile={rigProfile} />}
@@ -1326,7 +1604,7 @@ export default function App({ user }) {
       <div style={{ height: isMobile ? "calc(100vh - 130px)" : "calc(100vh - 60px)", display: tab === "copilot" ? "flex" : "none", flexDirection: "column" }}>
         <InlineChat rigProfile={rigProfile} firstTimeBuyer={firstTimeBuyer} prefillMessage={copilotPrefill} prefillNonce={copilotKey} llm={llm} />
       </div>
-      {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} saveError={profileSaveError} />}
+      {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} saveError={profileSaveError} user={user} pro={pro} online={online} />}
     </>
   );
 

@@ -1,5 +1,8 @@
-import { getUserFromRequest } from "../../../lib/supabaseServer";
+import { getUserFromRequest, getPlanFromRequest } from "../../../lib/supabaseServer";
 import { rateLimit } from "../../../lib/ratelimit";
+
+const PRO_CHAT_LIMIT = 150; // per 10 min window, vs the free bucket default of 30
+const MODELS = { free: "gemini-2.5-flash", pro: "gemini-2.5-pro" };
 
 export async function POST(req) {
   try {
@@ -8,7 +11,8 @@ export async function POST(req) {
     if (!user) {
       return Response.json({ error: "Sign in to use cloud chat." }, { status: 401 });
     }
-    const limited = rateLimit(req, "chat", user.id);
+    const plan = await getPlanFromRequest(req);
+    const limited = rateLimit(req, "chat", user.id, plan === "pro" ? PRO_CHAT_LIMIT : null);
     if (limited) return limited;
 
     let body;
@@ -80,7 +84,7 @@ RULES:
       });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${MODELS[plan] || MODELS.free}:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const geminiBody = JSON.stringify({
       contents: history,
       generationConfig: {
