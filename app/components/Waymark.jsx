@@ -372,7 +372,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce, 
   const [mode, setMode] = useState("auto"); // auto | cloud | offline
   // The hook lives in App so the dashboard trip-prep prompt shares the
   // same engine and progress state
-  const { status: llmStatus, progress, progressText, load: loadLLM, generate: generateLLM } = llm;
+  const { status: llmStatus, progress, progressText, cached: llmCached, fromCache: llmFromCache, load: loadLLM, generate: generateLLM } = llm;
 
   // The chat stays mounted across tab switches so history survives; a new
   // nonce marks each fresh prefill request rather than a remount.
@@ -431,14 +431,17 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce, 
     }
     // In Auto mode a cloud failure must not silently start a ~700MB download;
     // point the user at the Offline toggle instead so the download is a choice.
-    if (mode === "auto" && llmStatus !== "ready") {
+    // A model already on this device loads without a download, so use it.
+    if (mode === "auto" && llmStatus !== "ready" && !llmCached) {
       setMessages(m => [...m, { role: "ai", text: "Cloud AI is unreachable and the offline model is not downloaded yet. Switch the toggle to Offline to download it (about 700MB, one time), or check your connection and try again.", source: "system" }]);
       setTyping(false);
       return;
     }
     try {
       if (llmStatus !== "ready") {
-        setMessages(m => [...m, { role: "ai", text: "Loading the offline AI model. The first load downloads about 700MB and can take a few minutes. After that it is cached and starts instantly.", source: "system" }]);
+        setMessages(m => [...m, { role: "ai", text: llmCached
+          ? "Loading the offline AI from this device. It is already downloaded, this takes seconds."
+          : "Loading the offline AI model. The first load downloads about 700MB and can take a few minutes. After that it is cached and starts instantly.", source: "system" }]);
         await loadLLM();
       }
       const text = await generateLLM(newMessages, rigProfile, firstTimeBuyer);
@@ -508,8 +511,8 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce, 
         {llmStatus === "loading" && (
           <div style={{ background: C.blueSoft, border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "8px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: C.blue }}><Zap size={11} /> Loading Offline AI: {progress}%</span>
-              <span style={{ fontSize: 10, color: C.muted }}>First time only</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: C.blue }}><Zap size={11} /> {llmFromCache ? "Loading Offline AI from this device" : "Downloading Offline AI"}: {progress}%</span>
+              <span style={{ fontSize: 10, color: C.muted }}>{llmFromCache ? "No download needed" : "First time only"}</span>
             </div>
             <div style={{ background: C.surface, borderRadius: 4, height: 4, overflow: "hidden" }}>
               <div style={{ width: `${progress}%`, height: "100%", background: C.blue, borderRadius: 4, transition: "width 0.3s" }} />
@@ -546,9 +549,11 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce, 
         {llmStatus === "idle" && (
           <button onClick={loadLLM}
             style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 12px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
-            <Download size={12} color={C.muted} />
-            <span style={{ fontSize: 11, color: C.muted }}>Download offline AI for emergency use</span>
-            <span style={{ marginLeft: "auto", fontSize: 10, color: C.blue, fontWeight: 600 }}>~700MB · wifi recommended</span>
+            {llmCached
+              ? <Zap size={12} color={C.green} />
+              : <Download size={12} color={C.muted} />}
+            <span style={{ fontSize: 11, color: C.muted }}>{llmCached ? "Load offline AI (already on this device)" : "Download offline AI for emergency use"}</span>
+            <span style={{ marginLeft: "auto", fontSize: 10, color: C.blue, fontWeight: 600 }}>{llmCached ? "loads in seconds" : "~700MB · wifi recommended"}</span>
           </button>
         )}
       </div>
@@ -837,9 +842,11 @@ function OfflineSetupCard({ llm }) {
   });
 
   if (!llm || llm.status === "unsupported") return null;
-  const modelReady = llm.status === "ready";
-  if (modelReady && installed) return null;
-  if (dismissed && (llm.status === "idle" || modelReady)) return null;
+  // Ready in memory or already downloaded to this device: either way the
+  // 700MB is not needed again
+  const modelOnDevice = llm.status === "ready" || llm.cached;
+  if (modelOnDevice && installed) return null;
+  if (dismissed && (llm.status === "idle" || modelOnDevice)) return null;
 
   function dismiss() {
     try { localStorage.setItem("waymark_offline_prompt", "dismissed"); } catch {}
@@ -884,13 +891,13 @@ function OfflineSetupCard({ llm }) {
     );
   }
 
-  // Model ready but the app is not installed yet: offer the missing half
-  if (modelReady) {
+  // Model on this device but the app is not installed yet: offer the missing half
+  if (modelOnDevice) {
     return (
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.green, display: "inline-block", flexShrink: 0 }} />
         <span style={{ flex: 1, minWidth: 180, fontSize: 12, color: C.textSub }}>
-          Offline AI is ready. {installPrompt ? "Install the app to finish offline setup." : "To finish, install the app from your browser menu (Install Waymark), or on iPhone: Share, then Add to Home Screen."}
+          Offline AI is downloaded. {installPrompt ? "Install the app to finish offline setup." : "To finish, install the app from your browser menu (Install Waymark), or on iPhone: Share, then Add to Home Screen."}
         </span>
         {installPrompt && (
           <button onClick={downloadEverything}
