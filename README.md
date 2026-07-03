@@ -30,10 +30,15 @@ On first use the app downloads a quantized Llama 3.2 1B model (~700MB) into brow
 - Env vars are validated at startup with a clear error naming what is missing
 - Video search parses YouTube's public results page server-side (cached 1 hour), with the official Data API as an optional fallback
 
+## Browser support
+- **Chrome and Edge**: the full experience, including offline mode (WebLLM needs WebGPU)
+- **Firefox and Safari**: everything except offline mode; the app detects the missing WebGPU support and shows a notice pointing to Chrome or Edge
+- Cloud chat and every other feature work the same in all four browsers
+
 ## Setup
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in the keys
-3. Create a Supabase project and run `supabase/migrations/001_profiles.sql` in the SQL editor
+3. Create a Supabase project and run each file in `supabase/migrations/` in order (`001_profiles.sql`, then `002_metrics.sql`) in the SQL editor
 4. `npm run dev`
 
 ## Status

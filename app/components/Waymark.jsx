@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { supabase } from "../../lib/supabase";
+import { logMetric } from "../../lib/metrics";
 import CampsiteSearch from "./CampsiteSearch";
 import { useState, useRef, useEffect } from "react";
 import { useWebLLM } from "./useWebLLM";
@@ -79,6 +81,9 @@ function Badge({ children, color = C.accent, bg = C.accentSoft }) {
 function Card({ children, style = {}, onClick }) {
   return (
     <div onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(e); } }) : undefined}
       style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s, box-shadow 0.15s", ...style }}
       onMouseEnter={e => { if (onClick) { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.boxShadow = `0 0 0 1px ${C.accent}22`; } }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = "none"; }}
@@ -137,7 +142,7 @@ function FullForecastPage({ onBack }) {
   return (
     <div style={{ padding: "0 16px 100px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0 16px" }}>
-        <button onClick={onBack} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}><ArrowLeft size={16} /></button>
+        <button onClick={onBack} aria-label="Back" style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}><ArrowLeft size={16} /></button>
         <div>
           <div style={{ fontWeight: 800, fontSize: 18, color: C.text, letterSpacing: "-0.02em" }}>Full Route Forecast</div>
           <div style={{ fontSize: 12, color: C.textSub }}>{trip.from} → {trip.to} · {days.length || 6}-Day Outlook</div>
@@ -160,6 +165,11 @@ function FullForecastPage({ onBack }) {
       {loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[1, 2, 3, 4, 5, 6].map(i => <div key={i} style={{ height: 92, background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, opacity: 0.5 }} />)}
+        </div>
+      )}
+      {!loading && !error && days.length === 0 && (
+        <div style={{ textAlign: "center", padding: "32px 16px", color: C.muted, fontSize: 13 }}>
+          No forecast data for this route yet. Edit your trip on the Home tab and try again.
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -202,6 +212,7 @@ function FullVibePage({ onBack, rigProfile }) {
   const [activeCat, setActiveCat] = useState("All");
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
 
   const catQueries = {
@@ -216,6 +227,7 @@ function FullVibePage({ onBack, rigProfile }) {
 
   async function fetchVideos(customSearch = "") {
     setLoading(true);
+    setError(null);
     try {
       const base = rigProfile?.make ? `${rigProfile.make} RV` : "RV";
       const query = customSearch.trim()
@@ -223,9 +235,11 @@ function FullVibePage({ onBack, rigProfile }) {
         : `${base} ${catQueries[activeCat]}`;
       const res = await fetch(`/api/youtube?query=${encodeURIComponent(query)}`);
       const data = await res.json();
-      if (data.videos) setVideos(data.videos);
+      if (!res.ok || data.error) throw new Error(data.error || `videos request failed (${res.status})`);
+      setVideos(data.videos || []);
     } catch (err) {
       console.error("Failed to load vibe feed:", err);
+      setError("Videos are unavailable right now. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -240,7 +254,7 @@ function FullVibePage({ onBack, rigProfile }) {
 
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0 16px" }}>
-        <button onClick={onBack} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}>
+        <button onClick={onBack} aria-label="Back" style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 10px", cursor: "pointer", color: C.text, display: "flex", alignItems: "center" }}>
           <ArrowLeft size={16} />
         </button>
         <div>
@@ -256,7 +270,8 @@ function FullVibePage({ onBack, rigProfile }) {
           onChange={e => setSearch(e.target.value)}
           onKeyDown={e => e.key === "Enter" && fetchVideos(search)}
           placeholder={`Search ${rigProfile?.make || "RV"} videos...`}
-          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+          aria-label="Search videos"
+          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit" }}
         />
         <button onClick={() => fetchVideos(search)}
           style={{ padding: "9px 16px", background: C.accent, border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#1A0800", fontFamily: "inherit" }}>
@@ -279,6 +294,15 @@ function FullVibePage({ onBack, rigProfile }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[1,2,3,4].map(i => <div key={i} style={{ height: 76, background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, opacity: 0.5 }} />)}
         </div>
+      ) : error ? (
+        <div style={{ background: C.redSoft, border: `1px solid ${C.red}44`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+          <AlertTriangle size={16} color={C.red} />
+          <span style={{ fontSize: 12, color: C.red }}>{error}</span>
+        </div>
+      ) : videos.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "32px 16px", color: C.muted, fontSize: 13 }}>
+          No videos found. Try a different search or category.
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {videos.map((v, i) => (
@@ -287,7 +311,7 @@ function FullVibePage({ onBack, rigProfile }) {
               onMouseEnter={e => e.currentTarget.style.borderColor = C.blue}
               onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
             >
-              <img src={v.thumbnail} alt={v.title} style={{ width: 88, height: 56, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+              <Image src={v.thumbnail} alt={v.title} width={88} height={56} style={{ borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: C.text, lineHeight: 1.4, marginBottom: 4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{v.title}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -314,21 +338,23 @@ const QUICK_REPLIES = [
 ];
 
 // ─── INLINE CHAT (Co-Pilot Page) ───────────────────────────────────────
-function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
+function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const bottomRef = useRef(null);
-  const prefillSent = useRef(false);
+  const lastPrefillNonce = useRef(0);
   const [mode, setMode] = useState("auto"); // auto | cloud | offline
   const { status: llmStatus, progress, progressText, load: loadLLM, generate: generateLLM } = useWebLLM();
 
+  // The chat stays mounted across tab switches so history survives; a new
+  // nonce marks each fresh prefill request rather than a remount.
   useEffect(() => {
-    if (prefillMessage && !prefillSent.current) {
-      prefillSent.current = true;
+    if (prefillMessage && prefillNonce && prefillNonce !== lastPrefillNonce.current) {
+      lastPrefillNonce.current = prefillNonce;
       setTimeout(() => sendMsg(prefillMessage), 300);
     }
-  }, [prefillMessage]);
+  }, [prefillNonce]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -373,6 +399,13 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
     // Offline (WebLLM): forced by the toggle, or automatic fallback when cloud fails
     if (llmStatus === "unsupported") {
       setMessages(m => [...m, { role: "ai", text: "Offline AI needs WebGPU, which this browser does not support. Use Chrome or Edge for offline mode, or switch back to Cloud.", source: "system" }]);
+      setTyping(false);
+      return;
+    }
+    // In Auto mode a cloud failure must not silently start a ~700MB download;
+    // point the user at the Offline toggle instead so the download is a choice.
+    if (mode === "auto" && llmStatus !== "ready") {
+      setMessages(m => [...m, { role: "ai", text: "Cloud AI is unreachable and the offline model is not downloaded yet. Switch the toggle to Offline to download it (about 700MB, one time), or check your connection and try again.", source: "system" }]);
       setTyping(false);
       return;
     }
@@ -472,6 +505,16 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
           </div>
         )}
 
+        {llmStatus === "error" && (
+          <div style={{ background: C.redSoft, border: `1px solid ${C.red}44`, borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertTriangle size={11} color={C.red} />
+            <span style={{ fontSize: 11, color: C.red }}>Offline AI download failed. Check your connection and storage space.</span>
+            <button onClick={loadLLM} style={{ marginLeft: "auto", background: "none", border: `1px solid ${C.red}55`, borderRadius: 6, padding: "3px 10px", color: C.red, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Preload button, shown when idle */}
         {llmStatus === "idle" && (
           <button onClick={loadLLM}
@@ -492,7 +535,7 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: C.text, letterSpacing: "-0.02em", marginBottom: 6 }}>Waymark AI</div>
             <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.5, maxWidth: 260, margin: "0 auto" }}>
-              Ask me anything about your rig — repairs, routes, campsites, maintenance.
+              Ask me anything about your rig: repairs, routes, campsites, maintenance.
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 340 }}>
@@ -563,9 +606,10 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage }) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && sendMsg(input)}
           placeholder={llmStatus === "ready" ? "Ask anything, even offline..." : "Ask Waymark anything about your rig..."}
-          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+          aria-label="Message Waymark AI"
+          style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", color: C.text, fontSize: 13, fontFamily: "inherit" }}
         />
-        <button onClick={() => sendMsg(input)}
+        <button onClick={() => sendMsg(input)} aria-label="Send message"
           style={{ width: 42, height: 42, borderRadius: 10, background: C.accent, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <Send size={16} color="#1A0800" />
         </button>
@@ -595,29 +639,36 @@ function NHTSAModelPicker({ rigProfile, setRigProfile }) {
       </div>
       <select value={rigProfile.model} onChange={e => setRigProfile(p => ({ ...p, model: e.target.value }))}
         disabled={!rigProfile.make || loading}
-        style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none", opacity: (!rigProfile.make || loading) ? 0.5 : 1 }}>
+        aria-label="Model"
+        style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", appearance: "none", opacity: (!rigProfile.make || loading) ? 0.5 : 1 }}>
         <option value="">Select a model...</option>
         {models.map(m => <option key={m} value={m}>{m}</option>)}
       </select>
       {rigProfile.make && !loading && models.length === 0 && (
-        <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>No models found — try a different year</div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>No models found - try a different year</div>
       )}
     </div>
   );
 }
 
 // ─── PROFILE TAB ───────────────────────────────────────────────────────
-function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuyer }) {
+function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuyer, saveError }) {
   const subs = ["Harvest Hosts", "KOA", "Thousand Trails", "Good Sam", "Boondockers Welcome", "Passport America", "RV Trip Wizard", "Campendium Pro"];
   return (
     <div style={{ padding: "0 16px 140px", display: "flex", flexDirection: "column", gap: 16 }}>
+      {saveError && (
+        <div style={{ background: C.redSoft, border: `1px solid ${C.red}44`, borderRadius: 10, padding: "10px 14px", marginTop: 20, marginBottom: -4, display: "flex", alignItems: "center", gap: 8 }}>
+          <AlertTriangle size={14} color={C.red} />
+          <span style={{ fontSize: 12, color: C.red }}>{saveError}</span>
+        </div>
+      )}
       <Card style={{ background: firstTimeBuyer ? C.accentSoft : C.surface, borderColor: firstTimeBuyer ? C.accent : C.border, marginTop: 20 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>First-Time Buyer Mode</div>
             <div style={{ fontSize: 12, color: C.textSub, marginTop: 2 }}>Switches AI to Consultant Mode</div>
           </div>
-          <button onClick={() => setFirstTimeBuyer(f => !f)} style={{ background: "none", border: "none", cursor: "pointer" }}>
+          <button onClick={() => setFirstTimeBuyer(f => !f)} aria-label="First-Time Buyer Mode" aria-pressed={firstTimeBuyer} style={{ background: "none", border: "none", cursor: "pointer" }}>
             {firstTimeBuyer ? <ToggleRight size={32} color={C.accent} /> : <ToggleLeft size={32} color={C.muted} />}
           </button>
         </div>
@@ -634,14 +685,16 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Year</div>
             <select value={rigProfile.year} onChange={e => setRigProfile(p => ({ ...p, year: e.target.value, model: "" }))}
-              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
+              aria-label="Year"
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", appearance: "none" }}>
               {Array.from({ length: 17 }, (_, i) => String(2026 - i)).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <div>
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Make</div>
             <select value={rigProfile.make} onChange={e => setRigProfile(p => ({ ...p, make: e.target.value, model: "" }))}
-              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", appearance: "none" }}>
+              aria-label="Make"
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", appearance: "none" }}>
               <option value="">Select a brand...</option>
               {["Airstream","Coachmen","CrossRoads","DRV","Entegra","Fleetwood","Forest River","Grand Design","Gulf Stream","Heartland","Jayco","Keystone","Lance","Newmar","Northwood","NuWa","Palomino","Prime Time","Shasta","Starcraft","Thor Motor Coach","Tiffin","Venture","Winnebago"].map(m => (
                 <option key={m} value={m}>{m}</option>
@@ -653,7 +706,8 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
             <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Floor Plan</div>
             <input value={rigProfile.floorPlan || ""} onChange={e => setRigProfile(p => ({ ...p, floorPlan: e.target.value }))}
               placeholder="e.g. 295RL, 21BHE, 310RLS"
-              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+              aria-label="Floor Plan"
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
             <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Found on your window sticker or manufacturer's website</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -661,13 +715,15 @@ function ProfileTab({ rigProfile, setRigProfile, firstTimeBuyer, setFirstTimeBuy
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Length</div>
               <input value={rigProfile.length} onChange={e => setRigProfile(p => ({ ...p, length: e.target.value }))}
                 placeholder="e.g. 29'11&quot;"
-                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                aria-label="Length"
+                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
             </div>
             <div>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 700, textTransform: "uppercase" }}>Height</div>
               <input value={rigProfile.height} onChange={e => setRigProfile(p => ({ ...p, height: e.target.value }))}
                 placeholder="e.g. 11'0&quot;"
-                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                aria-label="Height"
+                style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
             </div>
           </div>
           {rigProfile.make && rigProfile.model && (
@@ -732,9 +788,12 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
           title: v.title, channel: v.channel, thumb: v.thumbnail,
           tag: tags[i % tags.length], url: v.url, isReal: true,
         })));
+      } else {
+        setVibeItems([{ title: "No videos found for your rig yet. Browse All to search.", channel: "", tag: "Tips", url: null }]);
       }
     } catch (err) {
       console.error("Failed to load videos:", err);
+      setVibeItems([{ title: "Videos are unavailable right now. Check your connection.", channel: "", tag: "Tips", url: null }]);
     } finally {
       setVibeLoading(false);
     }
@@ -824,11 +883,11 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
         {tripDraft && (
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             <input value={tripDraft.from} onChange={e => setTripDraft(d => ({ ...d, from: e.target.value }))}
-              onKeyDown={e => e.key === "Enter" && saveTrip()} placeholder="From (city)"
-              style={{ flex: 1, minWidth: 0, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+              onKeyDown={e => e.key === "Enter" && saveTrip()} placeholder="From (city)" aria-label="Trip start"
+              style={{ flex: 1, minWidth: 0, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit" }} />
             <input value={tripDraft.to} onChange={e => setTripDraft(d => ({ ...d, to: e.target.value }))}
-              onKeyDown={e => e.key === "Enter" && saveTrip()} placeholder="To (city or park name)"
-              style={{ flex: 1, minWidth: 0, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+              onKeyDown={e => e.key === "Enter" && saveTrip()} placeholder="To (city or park name)" aria-label="Trip destination"
+              style={{ flex: 1, minWidth: 0, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontSize: 12, fontFamily: "inherit" }} />
             <button onClick={saveTrip}
               style={{ background: C.accent, border: "none", borderRadius: 8, padding: "8px 14px", color: "#1A0800", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
           </div>
@@ -840,6 +899,8 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
         )}
         {weatherAlert.hasAlert && (
           <div onClick={() => goToCopilot(`reroute around weather warning: ${weatherAlert.message}`)}
+            role="button" tabIndex={0}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToCopilot(`reroute around weather warning: ${weatherAlert.message}`); } }}
             style={{ display: "flex", alignItems: "center", gap: 10, background: C.redSoft, border: `1px solid ${C.red}33`, borderRadius: 12, padding: "11px 14px", marginBottom: 10, cursor: "pointer" }}>
             <AlertTriangle size={15} color={C.red} />
             <div style={{ flex: 1 }}>
@@ -852,7 +913,7 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
         <div style={{ display: "flex", background: C.surface, borderRadius: 12, border: `1px solid ${C.border}`, overflow: "hidden" }}>
           {weatherPoints.map((pt, i) => (
             <div key={i} style={{ flex: 1, padding: "12px 4px", textAlign: "center", borderRight: i < weatherPoints.length - 1 ? `1px solid ${C.border}` : "none", background: pt.alert ? `${C.red}0D` : "transparent" }}>
-              <div style={{ fontSize: 9, color: pt.alert ? C.red : C.muted, fontWeight: 600, marginBottom: 4, textTransform: "uppercase" }}>{pt.city}</div>
+              <div style={{ fontSize: 9, color: pt.alert ? C.red : C.muted, fontWeight: 600, marginBottom: 4, textTransform: "uppercase", height: 20, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", lineHeight: "10px" }}>{pt.city}</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: pt.alert ? C.red : C.text }}>{pt.temp}°</div>
               <div style={{ fontSize: 9, color: pt.alert ? `${C.red}99` : C.muted, marginTop: 2 }}>{pt.wind}mph</div>
             </div>
@@ -875,7 +936,7 @@ function Dashboard({ goToCopilot, openForecast, openVibeFeed, rigProfile }) {
               onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
             >
               {v.isReal ? (
-                <img src={v.thumb} alt={v.title} style={{ width: 80, height: 52, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+                <Image src={v.thumb} alt={v.title} width={80} height={52} style={{ borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
               ) : (
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: C.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid ${C.border}` }}><Compass size={18} color={C.muted} /></div>
               )}
@@ -964,11 +1025,16 @@ export default function App({ user }) {
   const [copilotKey, setCopilotKey] = useState(0);
   const [firstTimeBuyer, setFirstTimeBuyer] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaveError, setProfileSaveError] = useState(null);
   const [rigProfile, setRigProfile] = useState({
     year: "2024", make: "Grand Design", model: "Imagine XLS 21BHE",
     floorPlan: "21BHE", length: "29'11\"", height: "11'0\"",
     subs: ["Harvest Hosts", "KOA"],
   });
+
+  useEffect(() => {
+    logMetric("session_start");
+  }, []);
 
   useEffect(() => {
     async function loadProfile() {
@@ -994,13 +1060,14 @@ export default function App({ user }) {
   useEffect(() => {
     async function saveProfile() {
       if (!user || profileLoading) return;
-      await supabase.from("profiles").upsert({
+      const { error } = await supabase.from("profiles").upsert({
         id: user.id,
         year: rigProfile.year, make: rigProfile.make, model: rigProfile.model,
         floor_plan: rigProfile.floorPlan, length: rigProfile.length, height: rigProfile.height,
         subs: rigProfile.subs, first_time_buyer: firstTimeBuyer,
         updated_at: new Date().toISOString(),
       });
+      setProfileSaveError(error ? "Could not save your rig profile. Check your connection; recent changes may not persist." : null);
     }
     saveProfile();
   }, [rigProfile, firstTimeBuyer]);
@@ -1040,12 +1107,12 @@ export default function App({ user }) {
       {tab === "home" && subPage === "vibefeed" && <FullVibePage onBack={() => setSubPage(null)} rigProfile={rigProfile} />}
       {tab === "explore" && <ExplorePage goToCopilot={goToCopilot} rigProfile={rigProfile} />}
       {tab === "sites" && <CampsiteSearch rigProfile={rigProfile} openChat={goToCopilot} />}
-      {tab === "copilot" && (
-        <div style={{ height: isMobile ? "calc(100vh - 130px)" : "calc(100vh - 60px)", display: "flex", flexDirection: "column" }}>
-          <InlineChat key={copilotKey} rigProfile={rigProfile} firstTimeBuyer={firstTimeBuyer} prefillMessage={copilotPrefill} />
-        </div>
-      )}
-      {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} />}
+      {/* Kept mounted (hidden) on other tabs so chat history and the loaded
+          offline model survive tab switches */}
+      <div style={{ height: isMobile ? "calc(100vh - 130px)" : "calc(100vh - 60px)", display: tab === "copilot" ? "flex" : "none", flexDirection: "column" }}>
+        <InlineChat rigProfile={rigProfile} firstTimeBuyer={firstTimeBuyer} prefillMessage={copilotPrefill} prefillNonce={copilotKey} />
+      </div>
+      {tab === "profile" && <ProfileTab rigProfile={rigProfile} setRigProfile={setRigProfile} firstTimeBuyer={firstTimeBuyer} setFirstTimeBuyer={setFirstTimeBuyer} saveError={profileSaveError} />}
     </>
   );
 
@@ -1057,7 +1124,7 @@ export default function App({ user }) {
         <div style={{ position: "sticky", top: 0, zIndex: 50, background: `${C.bg}EE`, backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {subPage && (
-              <button onClick={() => setSubPage(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
+              <button onClick={() => setSubPage(null)} aria-label="Back" style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
                 <ArrowLeft size={18} />
               </button>
             )}
@@ -1067,20 +1134,20 @@ export default function App({ user }) {
             <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.03em", color: C.text }}>waymark</span>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => goToCopilot("Show me my current rig alerts")} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
+            <button onClick={() => goToCopilot("Show me my current rig alerts")} aria-label="Rig alerts" style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
               <Bell size={15} />
             </button>
-            <button onClick={handleSignOut} style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
+            <button onClick={handleSignOut} aria-label="Sign out" style={{ background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", color: C.muted, cursor: "pointer", display: "flex", alignItems: "center" }}>
               <User size={15} />
             </button>
           </div>
         </div>
 
         {/* Content */}
-        <div>{content}</div>
+        <main>{content}</main>
 
         {/* Bottom Nav */}
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: `${C.bg}F8`, backdropFilter: "blur(16px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "8px 0 20px", zIndex: 49 }}>
+        <nav aria-label="Primary" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: `${C.bg}F8`, backdropFilter: "blur(16px)", borderTop: `1px solid ${C.border}`, display: "flex", padding: "8px 0 20px", zIndex: 49 }}>
           {navItems.map(n => {
             const active = tab === n.key;
             return (
@@ -1091,7 +1158,7 @@ export default function App({ user }) {
               </button>
             );
           })}
-        </div>
+        </nav>
       </div>
     );
   }
@@ -1111,7 +1178,7 @@ export default function App({ user }) {
         </div>
 
         {/* Nav items */}
-        <div style={{ flex: 1, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
+        <nav aria-label="Primary" style={{ flex: 1, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 4 }}>
           {navItems.map(n => {
             const active = tab === n.key;
             return (
@@ -1125,7 +1192,7 @@ export default function App({ user }) {
               </button>
             );
           })}
-        </div>
+        </nav>
 
         {/* Rig summary + sign out */}
         <div style={{ padding: "12px 14px", borderTop: `1px solid ${C.border}` }}>
@@ -1150,7 +1217,7 @@ export default function App({ user }) {
         <div style={{ position: "sticky", top: 0, zIndex: 40, background: `${C.bg}EE`, backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.border}`, padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {subPage && (
-              <button onClick={() => setSubPage(null)} style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
+              <button onClick={() => setSubPage(null)} aria-label="Back" style={{ background: "none", border: "none", cursor: "pointer", color: C.muted, display: "flex", padding: 4 }}>
                 <ArrowLeft size={18} />
               </button>
             )}
@@ -1168,9 +1235,9 @@ export default function App({ user }) {
         </div>
 
         {/* Page content */}
-        <div style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "0 24px" }}>
+        <main style={{ flex: 1, maxWidth: 900, width: "100%", margin: "0 auto", padding: "0 24px" }}>
           {content}
-        </div>
+        </main>
       </div>
     </div>
   );

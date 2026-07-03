@@ -9,3 +9,25 @@ body {
   font-family: 'DM Sans', 'IBM Plex Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* Suppress the default outline on plain focus, restore a visible one for
+   keyboard navigation only, so mouse clicks stay clean but Tab remains
+   visible. Inline outline:none was removed from components so this applies. */
+button:focus,
+input:focus,
+select:focus,
+textarea:focus,
+a:focus,
+[role="button"]:focus {
+  outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #F97316;
+  outline-offset: 2px;
+}

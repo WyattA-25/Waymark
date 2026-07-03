@@ -66,26 +66,30 @@ export default function Auth({ onLogin }) {
           </div>
 
           <div>
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>EMAIL</div>
+            <label htmlFor="waymark-email" style={{ display: "block", fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>EMAIL</label>
             <input
+              id="waymark-email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSubmit()}
               placeholder="you@example.com"
-              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
             />
           </div>
 
           <div>
-            <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>PASSWORD</div>
+            <label htmlFor="waymark-password" style={{ display: "block", fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 6 }}>PASSWORD</label>
             <input
+              id="waymark-password"
               type="password"
+              autoComplete={isSignUp ? "new-password" : "current-password"}
               value={password}
               onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleSubmit()}
               placeholder="••••••••"
-              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
             />
           </div>
 

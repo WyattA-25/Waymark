@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { logMetric } from "../../lib/metrics";
 
 const MODEL_ID = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 
@@ -7,6 +8,7 @@ export function useWebLLM() {
   const [progress, setProgress] = useState(0);
   const [progressText, setProgressText] = useState("");
   const engineRef = useRef(null);
+  const loadPromiseRef = useRef(null);
 
   // WebLLM requires WebGPU (Chrome and Edge; Safari and Firefox are partial).
   useEffect(() => {
@@ -15,23 +17,36 @@ export function useWebLLM() {
     }
   }, []);
 
-  async function load() {
-    if (engineRef.current || status === "loading" || status === "unsupported") return;
+  // Callers that send a message mid-download await the same in-flight
+  // promise instead of hitting a "Model not loaded" error.
+  function load() {
+    if (engineRef.current) return Promise.resolve();
+    if (status === "unsupported") return Promise.resolve();
+    if (loadPromiseRef.current) return loadPromiseRef.current;
+
     setStatus("loading");
-    try {
-      const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
-      const engine = await CreateMLCEngine(MODEL_ID, {
-        initProgressCallback: (p) => {
-          setProgress(Math.round(p.progress * 100));
-          setProgressText(p.text || "Loading model...");
-        },
-      });
-      engineRef.current = engine;
-      setStatus("ready");
-    } catch (err) {
-      console.error("WebLLM load error:", err);
-      setStatus("error");
-    }
+    loadPromiseRef.current = (async () => {
+      try {
+        const { CreateMLCEngine } = await import("@mlc-ai/web-llm");
+        const engine = await CreateMLCEngine(MODEL_ID, {
+          initProgressCallback: (p) => {
+            setProgress(Math.round(p.progress * 100));
+            setProgressText(p.text || "Loading model...");
+          },
+        });
+        engineRef.current = engine;
+        setStatus("ready");
+        logMetric("offline_model_loaded");
+      } catch (err) {
+        console.error("WebLLM load error:", err);
+        setStatus("error");
+        logMetric("offline_model_load_failed", { message: err.message });
+        throw err;
+      } finally {
+        loadPromiseRef.current = null;
+      }
+    })();
+    return loadPromiseRef.current;
   }
 
   async function generate(messages, rigProfile, firstTimeBuyer) {

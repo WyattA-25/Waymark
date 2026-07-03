@@ -83,13 +83,15 @@ export default function CampsiteSearch({ rigProfile, openChat }) {
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleSearch()}
           placeholder='e.g. "Yellowstone", "Adirondack", "beach"'
-          style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+          aria-label="Search campgrounds"
+          style={{ width: "100%", background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 14px", color: C.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
         />
         <div style={{ display: "flex", gap: 8 }}>
           <select
             value={state}
             onChange={e => setState(e.target.value)}
-            style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" }}
+            aria-label="State"
+            style={{ flex: 1, background: C.surfaceAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", color: C.text, fontSize: 13, fontFamily: "inherit" }}
           >
             {US_STATES.map(s => (
               <option key={s} value={s}>{s}</option>

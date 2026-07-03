@@ -6,9 +6,18 @@ import { rateLimit } from "../../../lib/ratelimit";
 const cache = new Map();
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
+// Retry once on network-level failure with a fresh timeout signal
+async function fetchOnceRetry(url, opts) {
+  try {
+    return await fetch(url, opts);
+  } catch {
+    return await fetch(url, { ...opts, signal: AbortSignal.timeout(8000) });
+  }
+}
+
 async function scrapeSearch(query) {
   // sp=EgIQAQ%3D%3D filters results to videos only
-  const res = await fetch(
+  const res = await fetchOnceRetry(
     `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%253D%253D&hl=en`,
     {
       headers: {
@@ -51,7 +60,7 @@ async function scrapeSearch(query) {
 
 async function officialSearch(query) {
   if (!process.env.YOUTUBE_API_KEY) throw new Error("No YouTube API key configured");
-  const res = await fetch(
+  const res = await fetchOnceRetry(
     `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=8&q=${encodeURIComponent(query)}&key=${process.env.YOUTUBE_API_KEY}`,
     { signal: AbortSignal.timeout(8000) }
   );
@@ -70,7 +79,7 @@ export async function GET(req) {
   if (limited) return limited;
 
   const { searchParams } = new URL(req.url);
-  const query = searchParams.get("query") || "RV camping";
+  const query = (searchParams.get("query") || "").trim().slice(0, 100) || "RV camping";
 
   const cached = cache.get(query);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -86,11 +95,15 @@ export async function GET(req) {
       videos = await officialSearch(query);
     }
     const result = { videos };
+    if (cache.size >= 200) cache.delete(cache.keys().next().value);
     cache.set(query, { data: result, timestamp: Date.now() });
     return Response.json(result);
   } catch (err) {
     console.error("YouTube fetch error:", err.message);
     if (cached) return Response.json(cached.data); // stale beats empty
-    return Response.json({ videos: [] }, { status: 500 });
+    return Response.json(
+      { videos: [], error: "Video search is unavailable right now." },
+      { status: 500 }
+    );
   }
 }

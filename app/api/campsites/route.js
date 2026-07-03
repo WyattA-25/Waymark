@@ -1,5 +1,5 @@
 import { rateLimit } from "../../../lib/ratelimit";
-import { geocode } from "../../../lib/geo";
+import { geocode, fetchJson } from "../../../lib/geo";
 
 export async function GET(req) {
   const limited = rateLimit(req, "campsites");
@@ -7,10 +7,12 @@ export async function GET(req) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const query = searchParams.get("query") || "camping";
-    const state = searchParams.get("state"); // optional two-letter filter
-    const near = searchParams.get("near"); // optional place name for radius search
-    const limit = Math.min(parseInt(searchParams.get("limit") || "6"), 20);
+    const query = (searchParams.get("query") || "").trim().slice(0, 80) || "camping";
+    const rawState = (searchParams.get("state") || "").trim();
+    const state = /^[a-z]{2}$/i.test(rawState) ? rawState : null; // optional two-letter filter, ignored if malformed
+    const near = (searchParams.get("near") || "").trim().slice(0, 80) || null; // optional place name for radius search
+    const parsed = parseInt(searchParams.get("limit") || "6");
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 20) : 6;
 
     // Search Recreation.gov for campgrounds
     const url = new URL("https://ridb.recreation.gov/api/v1/facilities");
@@ -31,24 +33,21 @@ export async function GET(req) {
     url.searchParams.set("limit", "20");
     url.searchParams.set("offset", "0");
 
-    const res = await fetch(url.toString(), {
-      headers: {
-        "apikey": process.env.RECREATION_GOV_API_KEY,
-        "Accept": "application/json",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Recreation.gov error:", res.status, text);
+    let data;
+    try {
+      data = await fetchJson(url.toString(), {
+        headers: {
+          "apikey": process.env.RECREATION_GOV_API_KEY,
+          "Accept": "application/json",
+        },
+      });
+    } catch (err) {
+      console.error("Recreation.gov error:", err.status || "", err.message);
       return Response.json(
-        { error: "Recreation.gov API error", detail: text },
-        { status: 500 }
+        { error: "Campground search is unavailable right now." },
+        { status: 502 }
       );
     }
-
-    const data = await res.json();
 
     const campgrounds = (data.RECDATA || [])
       .slice(0, limit)
@@ -68,9 +67,6 @@ export async function GET(req) {
 
   } catch (err) {
     console.error("Campsites route error:", err);
-    return Response.json(
-      { error: "Server error", detail: err.message },
-      { status: 500 }
-    );
+    return Response.json({ error: "Server error" }, { status: 500 });
   }
 }
