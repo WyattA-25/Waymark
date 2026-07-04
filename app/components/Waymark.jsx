@@ -407,7 +407,10 @@ function InlineChat({ rigProfile, firstTimeBuyer, prefillMessage, prefillNonce, 
             ...(session?.access_token ? { "Authorization": `Bearer ${session.access_token}` } : {}),
           },
           body: JSON.stringify({ messages: newMessages, rigProfile, firstTimeBuyer }),
-          signal: AbortSignal.timeout(8000), // 8 second timeout
+          // Generous: the Pro model thinks longer, and the server may fall
+          // back from pro to flash before answering. A dead connection
+          // fails fast on its own; this only bounds a hung one.
+          signal: AbortSignal.timeout(30000),
         });
         if (!res.ok) throw new Error("Gemini failed");
         const data = await res.json();

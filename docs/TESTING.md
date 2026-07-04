@@ -28,7 +28,7 @@ Grant an account Pro with the SQL comment at the bottom of `supabase/migrations/
 - [ ] Pro account, Rig tab. Expected: a Maintenance section with + Add; adding an item with a due date shows it with a due chip (Overdue red when past, Due soon orange within 14 days); Done on a repeating item reschedules it (due date advances by the repeat interval); Done on a one-off removes it.
 - [ ] Pro account, dashboard. Expected: when items are overdue or due within 14 days, an orange reminder banner shows the count and tapping it opens the Rig tab.
 - [ ] Pro account offline. Expected: the maintenance list still shows (local mirror); adds and edits are marked "syncs when online" and push to Supabase when the connection returns.
-- [ ] Pro chat: cloud answers come from the smarter model (gemini-2.5-pro) and the per-user limit is 150 per 10 minutes instead of 30. Verify by checking the Vercel function logs or by rig-specific answer quality; there is no visible model label in the UI.
+- [ ] Pro chat: cloud answers come from the smarter model (gemini-2.5-pro) and the per-user limit is 150 per 10 minutes instead of 30. NOTE: free-tier Gemini API keys have no 2.5-pro quota (429); the route then falls back to flash automatically, so Pro chat always answers. Check the Vercel function logs to see which model served ("Gemini gemini-2.5-pro failed: 429" means the key needs billing for the smarter model).
 
 ## Manual QA checklist
 

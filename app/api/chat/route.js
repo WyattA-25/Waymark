@@ -84,7 +84,6 @@ RULES:
       });
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/${MODELS[plan] || MODELS.free}:generateContent?key=${process.env.GEMINI_API_KEY}`;
     const geminiBody = JSON.stringify({
       contents: history,
       generationConfig: {
@@ -97,25 +96,34 @@ RULES:
     const isRetryableError = e =>
       e instanceof TypeError || e?.name === "AbortError" || e?.name === "TimeoutError";
 
-    let res;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        res = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: geminiBody,
-          signal: AbortSignal.timeout(20000),
-        });
-      } catch (fetchErr) {
-        if (attempt === 0 && isRetryableError(fetchErr)) continue;
-        throw fetchErr;
+    // Pro tries the smarter model first, then falls back to flash, so chat
+    // keeps working when the key has no 2.5-pro quota (free Gemini keys
+    // return 429 for it until billing is enabled).
+    const candidates = plan === "pro" ? [MODELS.pro, MODELS.free] : [MODELS.free];
+
+    let res = null;
+    for (const model of candidates) {
+      const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: geminiBody,
+            signal: AbortSignal.timeout(20000),
+          });
+        } catch (fetchErr) {
+          if (attempt === 0 && isRetryableError(fetchErr)) continue;
+          throw fetchErr;
+        }
+        if (res.status < 500) break;
       }
-      if (res.status < 500) break;
+      if (res?.ok) break;
+      const detail = await res?.text().catch(() => "") || "";
+      console.error(`Gemini ${model} failed:`, res?.status, detail.slice(0, 300));
     }
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error("Gemini Error:", res.status, detail.slice(0, 500));
+    if (!res?.ok) {
       return Response.json({ error: "Cloud AI is unavailable right now." }, { status: 502 });
     }
 

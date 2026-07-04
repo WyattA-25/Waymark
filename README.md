@@ -15,7 +15,7 @@ An AI-powered RV co-pilot built with Next.js. Chat runs two ways: Gemini in the 
 - **Campsite Search**: real campgrounds from Recreation.gov, searchable by state or by radius around your destination
 - **Vibe Feed**: RV videos matched to your exact rig, fetched without YouTube API quota limits
 - **Rig Profile**: stores your dimensions, floor plan, and memberships (Supabase with row level security)
-- **Waymark Pro** ($4.99/mo, payments not wired yet): maintenance log with due reminders tied to your rig (works offline, syncs on reconnect), a smarter cloud model (Gemini 2.5 Pro), and 5x chat limits; entitlement lives server-side with read-only RLS and is cached locally with a 7 day grace window so Pro works offline
+- **Waymark Pro** ($4.99/mo, payments not wired yet): maintenance log with due reminders tied to your rig (works offline, syncs on reconnect), a smarter cloud model (Gemini 2.5 Pro when the API key has billing, with automatic fallback to Flash), and 5x chat limits; entitlement lives server-side with read-only RLS and is cached locally with a 7 day grace window so Pro works offline
 
 ## How offline mode works
 On first use the app downloads a quantized Llama 3.2 1B model (~700MB) into browser storage via WebLLM. After that, the model loads from cache and inference runs entirely on-device through WebGPU. If the cloud call fails or you flip the toggle to Offline, questions are answered locally: tested by disabling the network entirely and asking an emergency question.
